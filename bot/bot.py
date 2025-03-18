@@ -92,6 +92,7 @@ async def main(room_url: str, token: str, body: dict):
 
     dialout_settings = None
     dialout_settings = body.get("dialout_settings")
+    logger.debug(f"Dialout settings: {dialout_settings}")
 
     transport = DailyTransport(
         room_url,
@@ -176,22 +177,23 @@ async def main(room_url: str, token: str, body: dict):
     # and set_bot_ready() when dialout answered is fired
     async def start_dialout(transport, dialout_settings):
         for dialout_setting in dialout_settings:
-            if dialout_setting.phoneNumber:
-                logger.info(f"Dialing number: {dialout_setting.phoneNumber}")
-                if dialout_setting.callerId is not None:
-                    logger.info(f"with callerId: {dialout_setting.callerId}")
+            # Change from attribute access to dictionary access
+            if "phoneNumber" in dialout_setting:
+                logger.info(f"Dialing number: {dialout_setting['phoneNumber']}")
+                if "callerId" in dialout_setting:
+                    logger.info(f"with callerId: {dialout_setting['callerId']}")
                     await transport.start_dialout(
                         {
-                            "phoneNumber": dialout_setting.phoneNumber,
-                            "callerId": dialout_setting.callerId,
+                            "phoneNumber": dialout_setting["phoneNumber"],
+                            "callerId": dialout_setting["callerId"],
                         }
                     )
                 else:
-                    logger.info(f"with no callerId: {dialout_setting.callerId}")
-                    await transport.start_dialout({"phoneNumber": dialout_setting.phoneNumber})
-            elif dialout_setting.sipUri:
-                logger.info(f"Dialing sipUri:, {dialout_setting.sipUri}")
-                await transport.start_dialout({"sipUri": dialout_setting.sipUri})
+                    logger.info("with no callerId")
+                    await transport.start_dialout({"phoneNumber": dialout_setting["phoneNumber"]})
+            elif "sipUri" in dialout_setting:
+                logger.info(f"Dialing sipUri: {dialout_setting['sipUri']}")
+                await transport.start_dialout({"sipUri": dialout_setting["sipUri"]})
 
     # Configure handlers for dialing out
     # dialout connected fires when the call starts ringing

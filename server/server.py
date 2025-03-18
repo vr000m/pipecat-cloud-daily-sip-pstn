@@ -87,7 +87,9 @@ async def dial(raw_request: Request):
     logger.info("Incoming request to /dial:")
     raw_body = await raw_request.body()
     raw_body_str = raw_body.decode()
+    logger.debug(f"Headers: {dict(raw_request.headers)}")
     request_data = await raw_request.json()
+    logger.debug(f"Body: {request_data}")
 
     # calculate signature and compare/verify
     hmac_secret = os.getenv("PINLESS_HMAC_SECRET")
