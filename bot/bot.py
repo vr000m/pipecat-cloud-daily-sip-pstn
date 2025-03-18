@@ -8,13 +8,18 @@ import os
 
 from dotenv import load_dotenv
 from loguru import logger
-from openai._types import NotGiven
+from openai.types.chat import ChatCompletionToolParam
 from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.frames.frames import (
+    EndTaskFrame,
+)
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
+from pipecat.processors.frame_processor import FrameDirection
 from pipecat.processors.frameworks.rtvi import RTVIConfig, RTVIObserver, RTVIProcessor
+from pipecat.services.ai_services import LLMService
 from pipecat.services.cartesia import CartesiaTTSService
 from pipecat.services.deepgram import DeepgramSTTService
 from pipecat.services.openai import OpenAILLMService
@@ -24,12 +29,12 @@ from pipecatcloud.agent import DailySessionArguments
 load_dotenv(override=True)
 
 
-# async def terminate_call(
-#     function_name, tool_call_id, args, llm: LLMService, context, result_callback
-# ):
-#     """Function the bot can call to terminate the call upon completion of a voicemail message."""
-#     await llm.queue_frame(EndTaskFrame(), FrameDirection.UPSTREAM)
-#     await result_callback("Goodbye")
+async def terminate_call(
+    function_name, tool_call_id, args, llm: LLMService, context, result_callback
+):
+    """Function the bot can call to terminate the call upon completion of a voicemail message."""
+    await llm.queue_frame(EndTaskFrame(), FrameDirection.UPSTREAM)
+    await result_callback("Goodbye")
 
 
 async def main(room_url: str, token: str, body: dict):
@@ -43,8 +48,8 @@ async def main(room_url: str, token: str, body: dict):
     "dialin_settings": {
         "to": "+14152251493",
         "from": "+14158483432",
-        "callId": "djhdhdf",
-        "callDomain": "djfhfhs"
+        "callId": "string",
+        "callDomain": "string"
     },
     "dialout_settings": [{
         "phoneNumber": "+14158483432",
@@ -72,10 +77,14 @@ async def main(room_url: str, token: str, body: dict):
         dialled_phonenum = (raw_dialin_settings.get("to"),)
         caller_phonenum = (raw_dialin_settings.get("from"),)
         dialin_settings = {
-            "callId": raw_dialin_settings.get("callId"),
-            "callDomain": raw_dialin_settings.get("callDomain"),
+            # these fields can be sent as snake_case or camelCase.
+            "call_id": raw_dialin_settings.get("callId") or raw_dialin_settings.get("call_id"),
+            "call_domain": raw_dialin_settings.get("callDomain")
+            or raw_dialin_settings.get("call_domain"),
         }
-        logger.debug("Dialin settings: {}", dialled_phonenum, caller_phonenum, dialin_settings)
+        logger.debug(
+            f"Dialin settings: To: {dialled_phonenum}, From: {caller_phonenum}, dialin_settings: {dialin_settings}"
+        )
 
     voicemail_detection = bool(body.get("voicemail_detection"))
     if voicemail_detection:
@@ -119,17 +128,17 @@ async def main(room_url: str, token: str, body: dict):
     ]
 
     # Define and register tools as required
-    tools = NotGiven()
-    # llm.register_function("terminate_call", terminate_call)
-    # tools = [
-    #     ChatCompletionToolParam(
-    #         type="function",
-    #         function={
-    #             "name": "terminate_call",
-    #             "description": "Terminate the call",
-    #         },
-    #     )
-    # ]
+    # tools = NotGiven()
+    llm.register_function("terminate_call", terminate_call)
+    tools = [
+        ChatCompletionToolParam(
+            type="function",
+            function={
+                "name": "terminate_call",
+                "description": "Terminate the call",
+            },
+        )
+    ]
 
     # This sets up the LLM context by providing messages and tools
     context = OpenAILLMContext(messages, tools)
@@ -193,21 +202,32 @@ async def main(room_url: str, token: str, body: dict):
     # dialout answered fires when the ringing call is off hook
     @transport.event_handler("on_dialout_answered")
     async def on_dialout_answered(transport, data):
-        logger.debug(f"Dial-out answered: {data}")
+        logger.debug(f"Dial-out answered: {data} and set_bot_ready")
+        await rtvi.set_bot_ready()
+
+    # @transport.event_handler("on_dialin_ready")
+    # async def on_dialin_ready(transport, data):
+    #     # For Twilio, Telnyx, etc. You need to update the state of the call
+    #     # and forward it to the sip_uri..
+    #     logger.debug(f"Dial-in ready: {data}")
+
+    @transport.event_handler("on_dialin_connected")
+    async def on_dialin_connected(transport, data):
+        logger.debug(f"Dial-in connected: {data} and set_bot_ready")
         await rtvi.set_bot_ready()
 
     # set bot ready when the rtvi client sends ready.
     # this is not sent for telephony endpoints
     @rtvi.event_handler("on_client_ready")
     async def on_client_ready(rtvi):
-        logger.debug("Client ready event received")
+        logger.debug("Client ready sent by remote, set_bot_ready")
         await rtvi.set_bot_ready()
 
     # client ready when recording is ready.
     # For telephony endpoints, reconsider this
     @transport.event_handler("on_recording_started")
     async def on_recording_started(transport, status):
-        logger.debug("Recording started: {}", status)
+        logger.debugf(f"Recording started: {status} and setting set_bot_ready")
         await transport.on_recording_started(status)
         await rtvi.set_bot_ready()
 
@@ -233,8 +253,9 @@ async def main(room_url: str, token: str, body: dict):
 
     @transport.event_handler("on_joined")
     async def on_joined(transport, data):
-        session_id = data["meetingSessionId"]["id"]
-        logger.debug
+        session_id = data["meetingSession"]["id"]
+        bot_id = data["participants"]["local"]["id"]
+        logger.info(f"Session ID: {session_id}, Bot ID: {bot_id}")
 
     @transport.event_handler("on_participant_left")
     async def on_participant_left(transport, participant, reason):
