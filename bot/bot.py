@@ -82,7 +82,7 @@ async def main(room_url: str, token: str, body: dict):
             "call_domain": raw_dialin_settings.get("callDomain")
             or raw_dialin_settings.get("call_domain"),
         }
-        logger.debug(
+        logger.info(
             f"Dialin settings: To: {dialled_phonenum}, From: {caller_phonenum}, dialin_settings: {dialin_settings}"
         )
 
@@ -99,6 +99,7 @@ async def main(room_url: str, token: str, body: dict):
         token,
         "Voice AI Bot",
         DailyParams(
+            api_key=os.getenv("DAILY_API_KEY"),
             dialin_settings=dialin_settings,
             audio_out_enabled=True,
             vad_enabled=True,
