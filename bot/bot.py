@@ -29,6 +29,8 @@ from pipecatcloud.agent import DailySessionArguments
 load_dotenv(override=True)
 
 
+# Function call for the bot to terminate the call.
+# Needed in the case of dial-in and dial-out for the bot to hang up
 async def terminate_call(
     function_name, tool_call_id, args, llm: LLMService, context, result_callback
 ):
@@ -40,33 +42,6 @@ async def terminate_call(
 async def main(room_url: str, token: str, body: dict):
     logger.debug("Starting bot in room: {}", room_url, body)
 
-    """
-    body can contain any fields, but for handling PSTN/SIP, 
-    we recommend sending the following custom values:
-    dialin, dialout, voicemail detection, and call transfer
-    
-    "dialin_settings": {
-        "to": "+14152251493",
-        "from": "+14158483432",
-        "callId": "string",
-        "callDomain": "string"
-    },
-    "dialout_settings": [{
-        "phoneNumber": "+14158483432",
-        "callerId": "+14152251493"}, 
-        {"sipURI": "fhdhdhd"}],
-    "voicemail_detection": {
-        "testInPrebuilt": true
-    },
-    "call_transfer": {
-        "mode": "dialout",
-        "speakSummary": true,
-        "storeSummary": true,
-        "operatorNumber": "+14152250006",
-        "testInPrebuilt": true
-    }
-    """
-
     # dialin_settings are received when a call is triggered to
     # Daily via pinless_dialin. This can be a phone number on Daily or a
     # sip interconnect from Twilio or Telnyx.
@@ -74,15 +49,16 @@ async def main(room_url: str, token: str, body: dict):
     dialled_phonenum = None
     caller_phonenum = None
     if raw_dialin_settings := body.get("dialin_settings"):
-        dialled_phonenum = (raw_dialin_settings.get("to"),)
-        caller_phonenum = (raw_dialin_settings.get("from"),)
+        # these fields can capitalize the first letter
+        dialled_phonenum = (raw_dialin_settings.get("To") or raw_dialin_settings.get("to"),)
+        caller_phonenum = (raw_dialin_settings.get("From") or raw_dialin_settings.get("from"),)
         dialin_settings = {
-            # these fields can be sent as snake_case or camelCase.
+            # these fields can be received as snake_case or camelCase.
             "call_id": raw_dialin_settings.get("callId") or raw_dialin_settings.get("call_id"),
             "call_domain": raw_dialin_settings.get("callDomain")
             or raw_dialin_settings.get("call_domain"),
         }
-        logger.info(
+        logger.debug(
             f"Dialin settings: To: {dialled_phonenum}, From: {caller_phonenum}, dialin_settings: {dialin_settings}"
         )
 
@@ -99,7 +75,7 @@ async def main(room_url: str, token: str, body: dict):
         token,
         "Voice AI Bot",
         DailyParams(
-            api_key=os.getenv("DAILY_API_KEY"),
+            api_key=os.getenv("DAILY_API_KEY"),  # needed for dial-in
             dialin_settings=dialin_settings,
             audio_out_enabled=True,
             vad_enabled=True,
@@ -119,6 +95,7 @@ async def main(room_url: str, token: str, body: dict):
 
     # Set up the initial context for the conversation
     # You can specified initial system and assistant messages here
+    # or register tools for the LLM to use
     messages = [
         {
             "role": "system",
@@ -129,8 +106,8 @@ async def main(room_url: str, token: str, body: dict):
         },
     ]
 
-    # Define and register tools as required
-    # tools = NotGiven()
+    # Registering the terminate_call function as a tool
+    # This is used to terminate the call when the bot is done
     llm.register_function("terminate_call", terminate_call)
     tools = [
         ChatCompletionToolParam(
@@ -141,11 +118,13 @@ async def main(room_url: str, token: str, body: dict):
             },
         )
     ]
+    # tools = NotGiven()
 
     # This sets up the LLM context by providing messages and tools
     context = OpenAILLMContext(messages, tools)
     context_aggregator = llm.create_context_aggregator(context)
 
+    # RTVI events for Pipecat client UI
     rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
 
     # A core voice AI pipeline
@@ -208,11 +187,11 @@ async def main(room_url: str, token: str, body: dict):
         logger.debug(f"Dial-out answered: {data} and set_bot_ready")
         await rtvi.set_bot_ready()
 
-    # @transport.event_handler("on_dialin_ready")
-    # async def on_dialin_ready(transport, data):
-    #     # For Twilio, Telnyx, etc. You need to update the state of the call
-    #     # and forward it to the sip_uri..
-    #     logger.debug(f"Dial-in ready: {data}")
+    @transport.event_handler("on_dialin_ready")
+    async def on_dialin_ready(transport, data):
+        # For Twilio, Telnyx, etc. You need to update the state of the call
+        # and forward it to the sip_uri..
+        logger.debug(f"Dial-in ready: {data}")
 
     @transport.event_handler("on_dialin_connected")
     async def on_dialin_connected(transport, data):
@@ -276,7 +255,7 @@ async def bot(args: DailySessionArguments):
     Args:
         room_url: The Daily room URL
         token: The Daily room token
-        body: The configuration object from the request body
+        body: The configuration object from the request body can contain dialin_settings, dialout_settings, voicemail_detection, and call_transfer
         session_id: The session ID for logging
     """
     logger.info(f"Bot process initialized {args.room_url} {args.token}")
