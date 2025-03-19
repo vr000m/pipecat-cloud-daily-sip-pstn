@@ -8,6 +8,7 @@ AGENT_NAME=$(grep 'agent_name' pcc-deploy.toml | cut -d'"' -f2)
 
 # Check if login is needed
 if [ "$1" != "--skip-login" ]; then
+  pcc auth login
   docker login
 fi
 
