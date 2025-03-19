@@ -11,7 +11,7 @@ import base64  # for calculating hmac signature
 import hmac
 import os  # for accessing environment variables
 import time  # for setting expiration time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -32,11 +32,11 @@ class RoomRequest(BaseModel):
     callDomain: Optional[str] = Field(
         None, alias="call_domain", description="Call domain identifier"
     )
-    dialout_settings: Optional[Dict[str, Any]] = Field(
-        None, description="An array of phone numbers to dialout to"
+    dialout_settings: Optional[List[Dict[str, Any]]] = Field(
+        None, description="An array of phone numbers or SIP URIs to dialout to"
     )
     voicemail_detection: Optional[Dict[str, Any]] = Field(
-        None, description="A flag to perform voicemail detection"
+        None, description="A flag to perform voicemail or answeing-machine detection"
     )
     call_transfer: Optional[Dict[str, Any]] = Field(None, description="to initiate a call transfer")
 
@@ -83,13 +83,13 @@ async def read_root():
 
 
 @app.post("/dial")
-async def dial(raw_request: Request):
+async def dial(request: RoomRequest, raw_request: Request):
     logger.info("Incoming request to /dial:")
+    logger.info(f"Headers: {dict(raw_request.headers)}")
     raw_body = await raw_request.body()
     raw_body_str = raw_body.decode()
-    logger.debug(f"Headers: {dict(raw_request.headers)}")
-    request_data = await raw_request.json()
-    logger.debug(f"Body: {request_data}")
+    logger.info(f"Raw body: {raw_body_str}")
+    logger.info(f"Parsed body: {request.dict()}")
 
     # calculate signature and compare/verify
     hmac_secret = os.getenv("PINLESS_HMAC_SECRET")
@@ -108,37 +108,40 @@ async def dial(raw_request: Request):
             logger.error("Invalid signature")
             raise HTTPException(status_code=401, detail="Invalid signature")
 
-    if request_data.get("test") == "test":
+    if request.test == "test":
         logger.debug("Test request received")
         return {"status": "success", "message": "Test request received"}
 
-    # Parse raw body and check for dialin properties
     dialin_settings = None
     # these fields are camelCase in the request
     required_fields = ["To", "From", "callId", "callDomain"]
-    if all(field in request_data for field in required_fields):
+    if all(
+        field in request.dict() and request.dict()[field] is not None for field in required_fields
+    ):
         # transform from camelCase to snake_case because daily-python expects snake_case
         dialin_settings = {
-            "from": request_data["From"],
-            "to": request_data["To"],
-            "call_id": request_data["callId"],
-            "call_domain": request_data["callDomain"],
+            "From": request.From,
+            "To": request.To,
+            "call_id": request.callId,
+            "call_domain": request.callDomain,
             # transform from camelCase to snake_case
         }
         logger.debug(f"Populated dialin_settings from request: {dialin_settings}")
 
     daily_room_properties = {
-        "enable_dialout": "dialout_settings" in request_data,
+        "enable_dialout": request.dialout_settings is not None,
     }
 
     if dialin_settings is not None:
         sip_config = {
-            "display_name": "sip-dialin",
+            "display_name": "dialin",
             "sip_mode": "dial-in",
-            "num_endpoints": 2 if "call_transfer" in request_data else 1,
+            "num_endpoints": 2 if request.call_transfer is not None else 1,
         }
         daily_room_properties["sip"] = sip_config
-        daily_room_properties["exp"] = int(time.time()) + (5 * 60)
+
+    # Setting default expiry to 5 minutes from now
+    daily_room_properties["exp"] = int(time.time()) + (5 * 60)
 
     logger.debug(f"Daily room properties: {daily_room_properties}")
     payload = {
@@ -146,17 +149,14 @@ async def dial(raw_request: Request):
         "dailyRoomProperties": daily_room_properties,
         "body": {
             "dialin_settings": dialin_settings,
-            "dialout_settings": request_data.get("dialout_settings"),
-            "voicemail_detection": request_data.get("voicemail_detection"),
-            "call_transfer": request_data.get("call_transfer"),
+            "dialout_settings": request.dialout_settings,
+            "voicemail_detection": request.voicemail_detection,
+            "call_transfer": request.call_transfer,
         },
     }
 
     daily_api_key = os.getenv("DAILY_API_KEY")
     agent_name = os.getenv("AGENT_NAME", "my-first-agent")
-
-    logger.debug(f"Agent name: {agent_name}")
-    logger.debug(f"Daily API Key: {daily_api_key}")
 
     if not daily_api_key:
         raise HTTPException(status_code=500, detail="DAILY_API_KEY environment variable is not set")
@@ -164,6 +164,8 @@ async def dial(raw_request: Request):
     headers = {"Authorization": f"Bearer {daily_api_key}", "Content-Type": "application/json"}
 
     url = f"https://api.pipecat.daily.co/v1/public/{agent_name}/start"
+
+    logger.debug(f"Making API call to Daily: {url} {headers} {payload}")
 
     Makecall = True
     if Makecall:
@@ -189,13 +191,16 @@ async def dial(raw_request: Request):
     else:
         logger.debug(f"Skipping API call to Daily: {url}")
         return {
-            "status": "success",
+            "status": "mock_success",
             "data": payload,
             "room_properties": daily_room_properties,
         }
 
 
 if __name__ == "__main__":
-    import uvicorn
+    try:
+        import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+    except KeyboardInterrupt:
+        logger.info("Server stopped manually")
