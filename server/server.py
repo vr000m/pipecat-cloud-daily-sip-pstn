@@ -167,34 +167,25 @@ async def dial(request: RoomRequest, raw_request: Request):
 
     logger.debug(f"Making API call to Daily: {url} {headers} {payload}")
 
-    Makecall = True
-    if Makecall:
-        try:
-            response = requests.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            response_data = response.json()
-            logger.debug(f"Response: {response_data}")
-            return {
-                "status": "success",
-                "data": response_data,
-                "room_properties": daily_room_properties,
-            }
-        except requests.exceptions.HTTPError as e:
-            # Pass through the status code and error details from the Daily API
-            status_code = e.response.status_code
-            error_detail = e.response.json() if e.response.content else str(e)
-            logger.error(f"HTTP error: {error_detail}")
-            raise HTTPException(status_code=status_code, detail=error_detail)
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Request error: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
-    else:
-        logger.debug(f"Skipping API call to Daily: {url}")
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        response_data = response.json()
+        logger.debug(f"Response: {response_data}")
         return {
-            "status": "mock_success",
-            "data": payload,
+            "status": "success",
+            "data": response_data,
             "room_properties": daily_room_properties,
         }
+    except requests.exceptions.HTTPError as e:
+        # Pass through the status code and error details from the Daily API
+        status_code = e.response.status_code
+        error_detail = e.response.json() if e.response.content else str(e)
+        logger.error(f"HTTP error: {error_detail}")
+        raise HTTPException(status_code=status_code, detail=error_detail)
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 if __name__ == "__main__":

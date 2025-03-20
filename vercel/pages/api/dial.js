@@ -106,7 +106,7 @@ export default async function handler(req, res) {
       daily_room_properties.sip = sip_config;
     }
 
-    // Prepare payload for Daily API
+    // Prepare payload for {service}/start API call
     const payload = {
       createDailyRoom: true,
       dailyRoomProperties: daily_room_properties,
@@ -136,39 +136,28 @@ export default async function handler(req, res) {
 
     const url = `https://api.pipecat.daily.co/v1/public/${agentName}/start`;
     logger.debug(`Making API call to Daily: ${url} ${JSON.stringify(headers)} ${JSON.stringify(payload)}`);
-
-    // Make the actual API call to Daily
-    const makecall = true;
-    if (makecall) {
-      try {
-        const response = await axios.post(url, payload, { headers });
-        logger.debug(`Response: ${JSON.stringify(response.data)}`);
-        
-        return res.status(200).json({
-          status: 'success',
-          data: response.data,
-          room_properties: daily_room_properties,
-        });
-      } catch (error) {
-        if (error.response) {
-          // Pass through status code and error details from the Daily API
-          const statusCode = error.response.status;
-          const errorDetail = error.response.data || error.message;
-          logger.error(`HTTP error: ${JSON.stringify(errorDetail)}`);
-          return res.status(statusCode).json(errorDetail);
-        } else {
-          logger.error(`Request error: ${error.message}`);
-          return res.status(500).json({ error: error.message });
-        }
-      }
-    } else {
-      logger.debug(`Skipping API call to Daily: ${url}`);
+    
+    try {
+      const response = await axios.post(url, payload, { headers });
+      logger.debug(`Response: ${JSON.stringify(response.data)}`);
+      
       return res.status(200).json({
-        status: 'mock_success',
-        data: payload,
+        status: 'success',
+        data: response.data,
         room_properties: daily_room_properties,
       });
-    }
+    } catch (error) {
+      if (error.response) {
+        // Pass through status code and error details from the Daily API
+        const statusCode = error.response.status;
+        const errorDetail = error.response.data || error.message;
+        logger.error(`HTTP error: ${JSON.stringify(errorDetail)}`);
+        return res.status(statusCode).json(errorDetail);
+      } else {
+        logger.error(`Request error: ${error.message}`);
+        return res.status(500).json({ error: error.message });
+      }
+    }    
   } catch (error) {
     logger.error(`Unexpected error: ${error.message}`);
     return res.status(500).json({ error: 'Internal server error', message: error.message });
