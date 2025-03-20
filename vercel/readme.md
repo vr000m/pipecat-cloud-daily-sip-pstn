@@ -1,13 +1,15 @@
 # Daily API Backend
 
-This is a Next.js backend application that integrates with Daily's API for handling voice calls.
+Next.js API routes for handling Daily Pipecat requests.
 
 ## Features
 
 - API endpoint for handling Daily Pipecat requests
 - HMAC signature validation
+- Structured logging with Pino
 - Support for dialin and dialout settings
 - Voicemail detection and call transfer functionality
+- Test request handling
 
 ## Setup
 
@@ -18,10 +20,10 @@ This is a Next.js backend application that integrates with Daily's API for handl
    ```
 3. Create `.env.local` file with your credentials:
    ```
-   PINLESS_HMAC_SECRET=your_hmac_secret
    DAILY_API_KEY=your_daily_api_key
    AGENT_NAME=my-first-agent
-   PORT=8000
+   PINLESS_HMAC_SECRET=your_hmac_secret
+   LOG_LEVEL=info
    ```
 4. Run the development server:
    ```bash
@@ -31,15 +33,20 @@ This is a Next.js backend application that integrates with Daily's API for handl
 ## API Endpoints
 
 ### GET /api
-Returns a simple "Hello, World!" message to verify the server is running.
+Returns a simple "Hello, World!" message with a cute cat emoji to verify the server is running.
 
 ### POST /api/dial
 Handles dialin and dialout requests for Daily Pipecat.
 
-#### Request Body Format
+#### Test Requests
+The endpoint handles test requests when a webhook is configured. Send a request with `"Test": "test"` to verify your setup:
+```json
+{
+  "Test": "test"
+}
+```
 
-The request body should contain the following fields:
-
+#### Production Request Format
 ```json
 {
   "To": "+14152251493",
@@ -63,16 +70,22 @@ The request body should contain the following fields:
 }
 ```
 
-## Deployment to Vercel
+## Deployment
 
-This application is designed to be deployed to Vercel:
+The application is configured for Vercel deployment:
 
 1. Push your code to a Git repository
-2. Connect the repository to Vercel
-3. Add your environment variables in the Vercel dashboard
+2. Import your project in Vercel dashboard
+3. Configure environment variables:
+   - `DAILY_API_KEY`
+   - `AGENT_NAME`
+   - `PINLESS_HMAC_SECRET`
+   - `LOG_LEVEL` (optional, defaults to 'info')
 4. Deploy!
 
 ## Security
 
 - HMAC signature validation for request authentication
 - Environment variables for sensitive credentials
+- Request size limits (1MB)
+- Method validation (POST only for /dial)
