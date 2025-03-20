@@ -82,7 +82,7 @@ async def read_root():
     return {"message": "Hello, World!"}
 
 
-@app.post("/dial")
+@app.post("/api/dial")
 async def dial(request: RoomRequest, raw_request: Request):
     logger.info("Incoming request to /dial:")
     logger.info(f"Headers: {dict(raw_request.headers)}")
@@ -192,6 +192,6 @@ if __name__ == "__main__":
     try:
         import uvicorn
 
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=3000)
     except KeyboardInterrupt:
         logger.info("Server stopped manually")
