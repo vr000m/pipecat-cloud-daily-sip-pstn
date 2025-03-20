@@ -43,7 +43,7 @@ curl --request POST \
 	"type": "pinless_dialin",
 	"name_prefix": "Customer1",
     "phone_number": "+1PURCHASED_NUM",
-	"room_creation_api": "https://example.com/dial",
+	"room_creation_api": "https://example.com/api/dial",
     "hold_music_url": "https://example.com/static/ringtone.mp3",
 	"timeout_config": {
 		"message": "No agent is available right now"
@@ -55,8 +55,8 @@ The API will return a static SIP URI (`sip_uri`) that can be called from other S
 
 ### Handling dial-in webhook (`room_creation_api`)
 
-To make and receive calls currently you have to host a server t 
-handle incoming calls. In the coming weeks, incoming calls will be 
+To make and receive calls currently you have to host a server that 
+handles incoming calls. In the coming weeks, incoming calls will be 
 directly handled within Daily and we will expose an endpoint similar 
 to `{service}/start` that will manage this for you.
 
