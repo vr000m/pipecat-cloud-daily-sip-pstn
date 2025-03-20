@@ -21,6 +21,7 @@ This is a Next.js backend application that integrates with Daily's API for handl
    PINLESS_HMAC_SECRET=your_hmac_secret
    DAILY_API_KEY=your_daily_api_key
    AGENT_NAME=my-first-agent
+   PORT=8000
    ```
 4. Run the development server:
    ```bash
