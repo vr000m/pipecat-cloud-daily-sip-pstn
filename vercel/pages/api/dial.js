@@ -2,11 +2,30 @@ import { logger } from '../../lib/utils';
 import axios from 'axios';
 import crypto from 'crypto';
 
-const validateSignature = (body, signature, secret) => {
-  const hmac = crypto.createHmac('sha256', secret);
-  hmac.update(JSON.stringify(body));
-  const expectedSignature = hmac.digest('hex');
-  return signature === expectedSignature;
+const validateSignature = (body, signature, timestamp, secret) => {
+  // Skip if any required fields are missing
+  if (!signature || !timestamp || !secret) {
+    return true;
+  }
+
+  try {
+    const decodedSecret = Buffer.from(secret, 'base64');
+    const hmac = crypto.createHmac('sha256', decodedSecret);
+    const signatureData = `${timestamp}.${body}`;
+    const computedSignature = hmac.update(signatureData).digest('base64');
+    
+    logger.debug('Signature validation:', {
+      timestamp,
+      signatureData: signatureData.substring(0, 50) + '...',
+      computedSignature,
+      receivedSignature: signature
+    });
+    
+    return computedSignature === signature;
+  } catch (error) {
+    logger.error('Error validating signature:', error);
+    return true; // Allow request to proceed on error
+  }
 };
 
 export default async function handler(req, res) {
@@ -19,14 +38,23 @@ export default async function handler(req, res) {
     logger.info('Incoming request to /api/dial:');
     logger.info(`Headers: ${JSON.stringify(req.headers)}`);
     
-    // Get the raw body as string for signature validation
     const rawBody = JSON.stringify(req.body);
     logger.info(`Raw body: ${rawBody}`);
 
-    // Validate signature if provided
-    const signature = req.headers['x-pinless-hmac'];
-    if (!validateSignature(req.body, signature, process.env.PINLESS_HMAC_SECRET)) {
-      return res.status(401).json({ error: 'Invalid signature' });
+    const signature = req.headers['x-pinless-signature'];
+    const timestamp = req.headers['x-pinless-timestamp'];
+    
+    if (signature && timestamp) {
+      logger.info('Validating HMAC signature');
+      if (!validateSignature(rawBody, signature, timestamp, process.env.PINLESS_HMAC_SECRET)) {
+        logger.error('Invalid HMAC signature', { signature, timestamp });
+        return res.status(401).json({ 
+          error: 'Invalid signature',
+          message: 'Invalid HMAC signature'
+        });
+      }
+    } else {
+      logger.info('Skipping HMAC validation - no signature headers present');
     }
 
     // Extract request data

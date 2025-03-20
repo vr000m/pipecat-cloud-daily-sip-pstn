@@ -49,24 +49,16 @@ The endpoint handles test requests when a webhook is configured. Send a request 
 #### Production Request Format
 ```json
 {
+  // for dial-in from webhook
   "To": "+14152251493",
   "From": "+14158483432",
   "callId": "string-contains-uuid",
   "callDomain": "string-contains-uuid",
+  // for making a dial out to a phone or SIP
   "dialout_settings": [
-    {"phoneNumber": "+14158483432", "callerId": "+14152251493"}, 
-    {"sipUri": "sip:username@sip.hostname"}
+    {"phoneNumber": "+14158483432", "callerId": "purchased_phone_uuid"}, 
+    {"sipUri": "sip:username@sip.hostname.com"}
   ],
-  "voicemail_detection": {
-    "testInPrebuilt": true
-  },
-  "call_transfer": {
-    "mode": "dialout",
-    "speakSummary": true,
-    "storeSummary": true,
-    "operatorNumber": "+14152250006",
-    "testInPrebuilt": true
-  }
 }
 ```
 
@@ -87,5 +79,4 @@ The application is configured for Vercel deployment:
 
 - HMAC signature validation for request authentication
 - Environment variables for sensitive credentials
-- Request size limits (1MB)
 - Method validation (POST only for /dial)
