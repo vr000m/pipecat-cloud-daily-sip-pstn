@@ -1,5 +1,13 @@
+import { logger } from '../../lib/utils';
 import axios from 'axios';
-import { validateSignature, logger } from '../../lib/utils';
+import crypto from 'crypto';
+
+const validateSignature = (body, signature, secret) => {
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(JSON.stringify(body));
+  const expectedSignature = hmac.digest('hex');
+  return signature === expectedSignature;
+};
 
 export default async function handler(req, res) {
   // Only allow POST requests
@@ -16,15 +24,9 @@ export default async function handler(req, res) {
     logger.info(`Raw body: ${rawBody}`);
 
     // Validate signature if provided
-    const timestamp = req.headers['x-pinless-timestamp'];
-    const signature = req.headers['x-pinless-signature'];
-    
-    if (timestamp) {
-      const isValid = validateSignature(signature, timestamp, rawBody);
-      if (!isValid) {
-        logger.error('Invalid signature');
-        return res.status(401).json({ error: 'Invalid signature' });
-      }
+    const signature = req.headers['x-pinless-hmac'];
+    if (!validateSignature(req.body, signature, process.env.PINLESS_HMAC_SECRET)) {
+      return res.status(401).json({ error: 'Invalid signature' });
     }
 
     // Extract request data
@@ -39,7 +41,7 @@ export default async function handler(req, res) {
       call_transfer
     } = req.body;
 
-    // Handle test requests
+    // Handle test requests when a webhook is configured
     if (test === 'test') {
       logger.debug('Test request received');
       return res.status(200).json({ status: 'success', message: 'Test request received' });
@@ -51,9 +53,10 @@ export default async function handler(req, res) {
     
     if (requiredFields.every(field => req.body[field] !== undefined && req.body[field] !== null)) {
       dialin_settings = {
+        // snake_case because pipecat expects this format
         From,
         To,
-        call_id: callId,
+        call_id: callId, 
         call_domain: callDomain,
       };
       logger.debug(`Populated dialin_settings from request: ${JSON.stringify(dialin_settings)}`);

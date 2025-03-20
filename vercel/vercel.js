@@ -1,4 +1,6 @@
-{
-    "version": 2,
-    "builds": [{ "src": "package.json", "use": "@vercel/next" }]
-}
+module.exports = {
+  version: 2,
+  buildCommand: "next build",
+  outputDirectory: ".next",
+  cleanUrls: true
+};
