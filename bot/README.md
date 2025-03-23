@@ -67,9 +67,10 @@ For handling PSTN/SIP within this starter image, we recommend sending
 the following custom values:
     
 ```python
-# Pass the values that you received in the pinless webhook to start
-# The callId and callDomain are specific to the
-# From is the user
+# Pass the values that you received in the pinless webhook to {service}/start
+# The callId and callDomain are internal call state and Daily-specific
+# From is the user dialing in
+# To is the purchased phone number that was dialled
 "dialin_settings": {
     "to": "+14152251493",
     "from": "+14158483432",
