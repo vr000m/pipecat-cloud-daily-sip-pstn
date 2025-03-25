@@ -1,0 +1,12 @@
+[
+    {
+        "phoneNumber": "+1xxx",
+        "callerId": "uuid"
+    },
+    {
+        "sipUri": "sip:+1xxxx@domain.sip.twilio.com"
+    },
+    {
+        "phoneNumber": "+1xxx"
+    }
+]

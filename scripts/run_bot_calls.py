@@ -12,7 +12,7 @@ load_dotenv()
 
 # Configuration
 WAIT_MINUTES = 5
-API_URL = os.getenv("API_URL", "http://pcc-dial-webhook-handler.vercel.app/")
+API_URL = os.getenv("API_URL", "localhost:3000")
 
 DIALOUT_SETTINGS = [
     {"phoneNumber": "+17868748498", "callerId": "15aad0ec-4d50-4c7f-aa0d-2158316deb03"},

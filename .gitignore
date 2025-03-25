@@ -171,3 +171,4 @@ cython_debug/
 .pypirc
 .DS_Store
 server/create_room.py
+scripts/my_config.json
