@@ -20,6 +20,18 @@ DIALOUT_SETTINGS = [
     {"phoneNumber": "+17868748498"},
 ]
 
+"""
+Examples:
+curl -X POST http://localhost:3000/api/dial 
+    -H "Content-Type: application/json" 
+    -d '{"dialout_settings": [{"phoneNumber": "+17868748498", "callerId":"15aad0ec-4d50-4c7f-aa0d-2158316deb03"}]}'
+
+curl -X POST http://localhost:8000/api/dial 
+    -H "Content-Type: application/json" 
+    -d '{"dialout_settings": [
+    {"sipUri": "sip:+17868748498@daily-twilio-integration.sip.twilio.com"}]}'
+"""
+
 
 async def make_bot_call(dialout_setting):
     """Make a single bot call using curl"""
@@ -29,7 +41,7 @@ async def make_bot_call(dialout_setting):
         "curl",
         "-X",
         "POST",
-        f"{API_URL}/bot/call",
+        f"{API_URL}/api/dial",
         "-H",
         "Content-Type: application/json",
         "-d",
