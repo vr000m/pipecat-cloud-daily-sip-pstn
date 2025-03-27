@@ -155,13 +155,13 @@ async def dial(request: RoomRequest, raw_request: Request):
         },
     }
 
-    daily_api_key = os.getenv("DAILY_API_KEY")
+    pcc_api_key = os.getenv("PIPECAT_CLOUD_API_KEY")
     agent_name = os.getenv("AGENT_NAME", "my-first-agent")
 
-    if not daily_api_key:
+    if not pcc_api_key:
         raise HTTPException(status_code=500, detail="DAILY_API_KEY environment variable is not set")
 
-    headers = {"Authorization": f"Bearer {daily_api_key}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {pcc_api_key}", "Content-Type": "application/json"}
 
     url = f"https://api.pipecat.daily.co/v1/public/{agent_name}/start"
 

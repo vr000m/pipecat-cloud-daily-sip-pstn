@@ -1,4 +1,9 @@
-import { logger } from '../../lib/utils';
+import pino from 'pino';  
+
+export const logger = pino({  
+  level: process.env.LOG_LEVEL || 'info',  
+});  
+
 import axios from 'axios';
 import crypto from 'crypto';
 
@@ -121,7 +126,7 @@ export default async function handler(req, res) {
     logger.debug(`Daily room properties: ${JSON.stringify(daily_room_properties)}`);
 
     // Get Daily API key and agent name from environment variables
-    const dailyApiKey = process.env.DAILY_API_KEY;
+    const pccApiKey = process.env.PIPECAT_CLOUD_API_KEY;
     const agentName = process.env.AGENT_NAME || 'my-first-agent';
 
     if (!dailyApiKey) {
