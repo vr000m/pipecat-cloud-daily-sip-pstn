@@ -172,3 +172,4 @@ cython_debug/
 .DS_Store
 server/create_room.py
 scripts/my_config.json
+vercel/.env.example
