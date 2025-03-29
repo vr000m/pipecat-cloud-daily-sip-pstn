@@ -105,7 +105,7 @@ export default async function handler(req, res) {
     // Configure SIP if dialin settings are provided
     if (dialin_settings !== null) {
       const sip_config = {
-        display_name: 'dialin',
+        display_name: From,
         sip_mode: 'dial-in',
         num_endpoints: call_transfer !== null ? 2 : 1,
       };
