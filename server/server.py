@@ -94,8 +94,9 @@ async def dial(request: RoomRequest, raw_request: Request):
     # calculate signature and compare/verify
     hmac_secret = os.getenv("PINLESS_HMAC_SECRET")
     timestamp = raw_request.headers.get("x-pinless-timestamp")
+    signature = raw_request.headers.get("x-pinless-signature")
 
-    if timestamp:
+    if timestamp and signature and hmac_secret:
         signature = timestamp + "." + raw_body_str
         logger.debug(f"Signature: {signature}")
 
@@ -104,9 +105,11 @@ async def dial(request: RoomRequest, raw_request: Request):
             hmac.new(base64_decoded_secret, signature.encode(), "sha256").digest()
         ).decode()
 
-        if computed_signature != raw_request.headers.get("x-pinless-signature"):
+        if computed_signature != signature:
             logger.error("Invalid signature")
             raise HTTPException(status_code=401, detail="Invalid signature")
+    else:
+        logger.debug("Skipping HMAC validation - no signature headers present")
 
     if request.test == "test":
         logger.debug("Test request received")

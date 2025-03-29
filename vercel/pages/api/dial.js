@@ -10,6 +10,7 @@ import crypto from 'crypto';
 const validateSignature = (body, signature, timestamp, secret) => {
   // Skip if any required fields are missing
   if (!signature || !timestamp || !secret) {
+    logger.warn('Missing required fields for HMAC validation');
     return true;
   }
 
