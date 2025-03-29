@@ -195,6 +195,6 @@ if __name__ == "__main__":
     try:
         import uvicorn
 
-        uvicorn.run(app, host="0.0.0.0", port=3000)
+        uvicorn.run(app, host="0.0.0.0", port=7860)
     except KeyboardInterrupt:
         logger.info("Server stopped manually")
