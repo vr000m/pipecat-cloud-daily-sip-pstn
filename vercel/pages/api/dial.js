@@ -1,11 +1,10 @@
-import pino from 'pino';  
-
-export const logger = pino({  
-  level: process.env.LOG_LEVEL || 'info',  
-});  
-
+import pino from 'pino';
 import axios from 'axios';
 import crypto from 'crypto';
+
+export const logger = pino({
+  level: process.env.LOG_LEVEL || 'info',
+});
 
 const validateSignature = (body, signature, timestamp, secret) => {
   // Skip if any required fields are missing
@@ -130,13 +129,13 @@ export default async function handler(req, res) {
     const pccApiKey = process.env.PIPECAT_CLOUD_API_KEY;
     const agentName = process.env.AGENT_NAME || 'my-first-agent';
 
-    if (!dailyApiKey) {
-      throw new Error('DAILY_API_KEY environment variable is not set');
+    if (!pccApiKey) {
+      throw new Error('PIPECAT_CLOUD_API_KEY environment variable is not set');
     }
 
     // Set up headers for Daily API call
     const headers = {
-      'Authorization': `Bearer ${dailyApiKey}`,
+      'Authorization': `Bearer ${pccApiKey}`,
       'Content-Type': 'application/json',
     };
 
