@@ -1,10 +1,6 @@
-import pino from 'pino';
+import {logger} from '../../lib/utils'; 
 import axios from 'axios';
 import crypto from 'crypto';
-
-export const logger = pino({
-  level: process.env.LOG_LEVEL || 'info',
-});
 
 const validateSignature = (body, signature, timestamp, secret) => {
   // Skip if any required fields are missing
