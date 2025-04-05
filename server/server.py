@@ -100,7 +100,6 @@ async def dial(request: RoomRequest, raw_request: Request):
         logger.debug("Skipping HMAC validation - PINLESS_HMAC_SECRET not set")
     elif timestamp and signature:
         message = timestamp + "." + raw_body_str
-        logger.debug(f"Message to sign: {message}")
 
         base64_decoded_secret = base64.b64decode(hmac_secret)
         computed_signature = base64.b64encode(
