@@ -1,4 +1,4 @@
-import {logger} from '../../lib/utils'; 
+import { logger } from '../../lib/utils'; 
 import axios from 'axios';
 import crypto from 'crypto';
 
