@@ -12,7 +12,7 @@ if [ "$1" != "--skip-login" ]; then
   docker login
 fi
 
-docker build --platform=linux/arm64 -t "$BASE_NAME:latest" .
+docker build --platform=linux/arm64 --no-cache -t "$BASE_NAME:latest" .
 docker tag "$BASE_NAME:latest" "$IMAGE_NAME:$VERSION"
 docker push "$IMAGE_NAME:$VERSION"
 pcc deploy
