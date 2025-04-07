@@ -3,5 +3,5 @@ image = "drvr000m/my-pstn-agent:0.1.5"
 secret_set = "my-pstn-agent-secrets"
 
 [scaling]
-	min_instances = 0 
+	min_instances = 1 
 

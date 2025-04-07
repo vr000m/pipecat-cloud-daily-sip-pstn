@@ -6,6 +6,7 @@
 
 import os
 import sys
+from datetime import datetime
 
 from dotenv import load_dotenv
 from loguru import logger
@@ -26,9 +27,67 @@ from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.transports.services.daily import DailyParams, DailyTransport
 from pipecatcloud.agent import DailySessionArguments
 
+now = datetime.now()
+weekday = now.strftime("%A")  # e.g., "Friday"
+formatted_time = now.strftime("%A, %B %d, %Y at %I:%M %p")
+hour = now.hour
+
 load_dotenv(override=True)
 logger.remove()
 logger.add(sys.stderr, level="DEBUG")
+
+
+def get_time_of_day(hour):
+    if 5 <= hour < 12:
+        return "morning"
+    elif 12 <= hour < 17:
+        return "afternoon"
+    elif 17 <= hour < 21:
+        return "evening"
+    else:
+        return "night"
+
+
+def get_day_style(weekday, date):
+    # Long weekends: Friday, Saturday, Sunday, or public holiday logic (simplified here)
+    if weekday in ["Friday", "Saturday", "Sunday"]:
+        return "long weekend"
+    elif weekday == "Monday":
+        return "quick start"
+    else:
+        return "midweek"
+
+
+# Time-aware storytelling tone
+time_of_day = get_time_of_day(hour)
+day_style = get_day_style(weekday, now)
+
+# Tone mapping (you can customize these further)
+tone_intro = {
+    "morning": "a fresh start to your day",
+    "afternoon": "a colorful moment to drift into imagination",
+    "evening": "a gentle escape as the day winds down",
+    "night": "a cozy tale to end the night",
+}
+
+story_type = {
+    "long weekend": "a whimsical adventure with time to explore",
+    "quick start": "a fast-paced story to energize your Monday",
+    "midweek": "a small journey to spark midweek joy",
+}
+
+# Build system message
+system_prompt = f"""
+You are Kai, a curious and friendly storyteller who loves weaving tales with others. Today is {formatted_time}.
+It’s the {time_of_day}, {tone_intro[time_of_day]}, and the start of {story_type[day_style]}.
+
+Let the caller guide the story, but always add delightful or surprising details to move it forward. Keep your responses short and vivid—just a few sentences. Your tone should reflect the time and energy of the moment.
+
+This is a voice-only interaction. Avoid special characters, complex phrases, or anything hard to pronounce.
+
+- If the caller no longer wants to continue, call `terminate_call` immediately.
+- Always end your responses with a question, choice, or invitation to keep going.
+"""
 
 
 # Function call for the bot to terminate the call.
@@ -310,9 +369,7 @@ async def main(room_url: str, token: str, body: dict):
         messages = [
             {
                 "role": "system",
-                "content": """You are Chatbot, a friendly, helpful robot. Your goal is to demonstrate your capabilities in a succinct way. Your output will be converted to audio so don't include special characters in your answers. Respond to what the user said in a creative and helpful way, but keep your responses brief. Start by introducing yourself.
-
-                - If the user no longer needs assistance, then call `terminate_call` immediately.""",
+                "content": system_prompt.strip(),
             },
         ]
 
