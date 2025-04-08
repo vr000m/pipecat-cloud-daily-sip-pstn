@@ -1,3 +1,6 @@
-pipecat-ai[openai,daily,deepgram,cartesia,silero]==0.0.62
+pipecat-ai[openai,cartesia,silero]==0.0.62
+pipecat-ai[daily,deepgram]==0.0.62
+daily-python~=0.16.1
+deepgram-sdk~=3.8.0
 python-dotenv
 pipecatcloud

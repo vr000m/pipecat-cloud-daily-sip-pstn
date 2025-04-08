@@ -172,3 +172,4 @@ cython_debug/
 server/create_room.py
 scripts/my_config.json
 vercel/.env.example
+bot/.env.image-pull-secret
