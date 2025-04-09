@@ -26,6 +26,8 @@ from pipecat.transports.services.daily import DailyParams, DailyTransport
 from pipecatcloud.agent import DailySessionArguments
 
 load_dotenv(override=True)
+logger.remove()
+logger.add(sys.stderr, level="DEBUG")
 
 
 # Function call for the bot to terminate the call.
