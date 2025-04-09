@@ -119,8 +119,7 @@ curl --request POST \
 ```
 
 The forwards the incoming request to bot, it passes the contents of the
-`dialin_settings` to the  `DailyTransport`. The PSTN or SIP call is then automatically 
-forwarded to the bot. 
+`dialin_settings` to the  `DailyTransport`. The PSTN or SIP call is then automatically forwarded to the bot. 
 
 The call flow looks like this:
 1. User calls your purchased phone number, Daily receives the call and puts it on hold
@@ -149,8 +148,7 @@ curl --request POST \
 --data-raw '{
     'createDailyRoom': true, 
     'dailyRoomProperties': {
-        'enable_dialout': false, 
-        'sip': {'display_name': 'dialin', 'sip_mode': 'dial-in', 'num_endpoints': 1}, 
+        'enable_dialout': true, 
         'exp': 1742353929
     }, 
     'body': {
