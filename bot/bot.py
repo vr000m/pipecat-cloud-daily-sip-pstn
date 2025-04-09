@@ -37,7 +37,7 @@ async def terminate_call(
 ):
     """Function the bot can call to terminate the call; e.g. upon completion of a voicemail message."""
     await llm.queue_frame(EndTaskFrame(), FrameDirection.UPSTREAM)
-    await result_callback("Goodbye")
+    await result_callback("""Say: 'Okay, thank you! Have a great day!'""")
 
 
 class DialInHandler:
