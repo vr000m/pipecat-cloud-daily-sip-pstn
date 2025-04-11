@@ -263,7 +263,11 @@ async def main(room_url: str, token: str, body: dict):
     if using_voicemail_detection:
         # If voicemail detection is enabled, we need to set up the context
         # to handle voicemail messages
+
+        # You may have to do a lookup unless you pass this info into dialout_settings
+        dialled_name = "Prospective Customer"
         caller_phonenum = "+1(650)477-1871"
+        caller_name = "Kevin from Daily"
         messages = [
             {
                 "role": "system",
@@ -282,7 +286,7 @@ async def main(room_url: str, token: str, body: dict):
 
                 #### **Step 2: Leave a Voicemail Message**
                 - Immediately say:
-                *"Hello, this is a message for Pipecat example user. This is Chatbot. Please call back on {caller_phonenum} ."*
+                *"Hello, this is a message for {dialled_name}. This is {caller_name}. Please call back on the phone number: {caller_phonenum} ."*
                 - **IMMEDIATELY AFTER LEAVING THE MESSAGE, CALL `terminate_call`.**
                 - **DO NOT SPEAK AFTER CALLING `terminate_call`.**
                 - **FAILURE TO CALL `terminate_call` IMMEDIATELY IS A MISTAKE.**
