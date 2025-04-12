@@ -265,9 +265,9 @@ async def main(room_url: str, token: str, body: dict):
         # to handle voicemail messages
 
         # You may have to do a lookup unless you pass this info into dialout_settings
-        dialled_name = "Prospective Customer"
-        caller_phonenum = "+1(650)477-1871"
-        caller_name = "Kevin from Daily"
+        dialled_name = "Kevin"
+        caller_phonenum = "+1 (650) 477 1871"
+        caller_name = "Tanya from Daily"
         messages = [
             {
                 "role": "system",
