@@ -75,6 +75,20 @@ The application is configured for Vercel deployment:
    - `LOG_LEVEL` (optional, defaults to 'info')
 4. Deploy!
 
+```
+❯ npx vercel
+
+Vercel CLI 41.4.1
+? Set up and deploy “~/Code/dailyai/pipecat-cloud/pipecat-cloud-daily-sip-pstn/vercel”? yes
+? Which scope should contain your project? Daily
+? Link to existing project? yes
+? What’s the name of your existing project? pcc-dial-webhook-handler
+🔗  Linked to daily-co/pcc-dial-webhook-handler (created .vercel)
+🔍  Inspect: https://vercel.com/daily-co/pcc-dial-webhook-handler/xxx [2s]
+✅  Preview: https://pcc-dial-webhook-handler-xxx-daily-co.vercel.app [2s]
+📝  To deploy to production (pcc-dial-webhook-handler.vercel.app), run `vercel --prod`
+```
+
 ## Security
 
 - HMAC signature validation for request authentication
