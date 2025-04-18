@@ -173,6 +173,16 @@ async def on_call_state_updated(transport, state):
         await rtvi.set_bot_ready()
 ```
 
+## Bot Variants
+
+This starter comes with different bot implementations to help you get started:
+
+- `bot_voice_v0.py`: The simplest implementation demonstrating basic voice interactions and call handling. Use this for understanding core functionality.
+- `bot_voice_v1.py`: A general-purpose bot with improved error handling and more structured code. Use this as a starting point for custom bots.
+- `bot_voicebot_storyteller.py`: An interactive storyteller bot that adapts its tone based on time of day. Use this to understand more complex conversational patterns.
+
+The deploy script will automatically detect these files and let you choose which one to use.
+
 ## Coming Soon
 
 - Native handling of incoming calls directly within Daily
