@@ -20,6 +20,7 @@ from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.openai_llm_context import OpenAILLMContext
 from pipecat.processors.frame_processor import FrameDirection
+from pipecat.processors.frameworks.rtvi import RTVIConfig, RTVIObserver, RTVIProcessor
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.llm_service import LLMService
@@ -37,6 +38,14 @@ logger.remove()
 logger.add(sys.stderr, level="DEBUG")
 
 
+# Add environment variable validation
+def validate_env_vars():
+    required_vars = ["DAILY_API_KEY", "DEEPGRAM_API_KEY", "OPENAI_API_KEY", "CARTESIA_API_KEY"]
+    missing = [var for var in required_vars if not os.getenv(var)]
+    if missing:
+        raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+
+
 def get_time_of_day(hour):
     if 5 <= hour < 12:
         return "morning"
@@ -49,10 +58,9 @@ def get_time_of_day(hour):
 
 
 def get_day_style(weekday, date):
-    # Long weekends: Friday, Saturday, Sunday, or public holiday logic (simplified here)
     if weekday in ["Friday", "Saturday", "Sunday"]:
         return "long weekend"
-    elif weekday == "Monday":
+    elif weekday in ["Monday", "Tuesday"]:
         return "quick start"
     else:
         return "midweek"
@@ -62,7 +70,8 @@ def get_day_style(weekday, date):
 time_of_day = get_time_of_day(hour)
 day_style = get_day_style(weekday, now)
 
-# Tone mapping (you can customize these further)
+# Tone mapping based on time of day and day style
+# This is used to set the mood of the story
 tone_intro = {
     "morning": "a fresh start to your day",
     "afternoon": "a colorful moment to drift into imagination",
@@ -76,17 +85,20 @@ story_type = {
     "midweek": "a small journey to spark midweek joy",
 }
 
-# Build system message
 system_prompt = f"""
-You are Kai, a curious and friendly storyteller who loves weaving tales with others. Today is {formatted_time}.
-It’s the {time_of_day}, {tone_intro[time_of_day]}, and the start of {story_type[day_style]}.
+You are Kai, a curious and friendly storyteller. Greet the caller warmly using {time_of_day} and introduce yourself as Kai. 
+Let them know that together, you're going to create a short story—something magical, surprising, or soothing, depending on the mood of the day.
 
-Let the caller guide the story, but always add delightful or surprising details to move it forward. Keep your responses short and vivid—just a few sentences. Your tone should reflect the time and energy of the moment.
+Today is {formatted_time}, a {time_of_day} that's perfect for {tone_intro[time_of_day]}. 
+It's also part of a {story_type[day_style]}.
 
-This is a voice-only interaction. Avoid special characters, complex phrases, or anything hard to pronounce.
+Your job is to guide the caller into the story with a short vivid introduction and then ask what happens next. 
+Let the caller shape the journey, while you add delightful twists or imagery in a few sentences at a time.
 
-- If the caller no longer wants to continue, call `terminate_call` immediately.
-- Always end your responses with a question, choice, or invitation to keep going.
+This conversation will be spoken aloud, so use clear and simple language. Avoid symbols or anything hard to pronounce.
+
+- If the caller says they’re done or no longer wants to continue, call `terminate_call` right away.
+- Always end your responses with a question, choice, or invitation to continue the story.
 """
 
 
@@ -133,7 +145,9 @@ class DialInHandler:
         @self.transport.event_handler("on_dialin_connected")
         async def on_dialin_connected(transport, data):
             """Handler for when a dial-in call is connected."""
+            session_id = data.get("sessionId")
             logger.debug(f"Dial-in connected: {data} and set_bot_ready")
+            logger.info(f"Dial-in session ID: {session_id}")
 
         @self.transport.event_handler("on_dialin_stopped")
         async def on_dialin_stopped(transport, data):
@@ -239,6 +253,7 @@ class DialOutHandler:
             session_id = data.get("sessionId")
             await transport.capture_participant_transcription(session_id)
             logger.debug(f"Dial-out answered: {data}")
+            logger.info(f"Dial-out session ID: {session_id}")
 
         @self.transport.event_handler("on_dialout_stopped")
         async def on_dialout_stopped(transport, data):
@@ -250,7 +265,7 @@ class DialOutHandler:
         async def on_dialout_error(transport, data):
             """Handler for dial-out errors. Will retry this specific call."""
             self.status = "failed"
-            await self.start()  # Retry this specific call
+            await self.start()  # Retry could cause infinite loop if error persists
             logger.error(f"Dial-out error: {data}, retrying...")
 
         @self.transport.event_handler("on_dialout_warning")
@@ -261,6 +276,9 @@ class DialOutHandler:
 
 async def main(room_url: str, token: str, body: dict):
     logger.debug("Starting bot in room: {}", room_url)
+
+    # Validate environment variables
+    validate_env_vars()
 
     # Dial-in configuration:
     # dialin_settings are received when a call is triggered to
@@ -391,11 +409,15 @@ async def main(room_url: str, token: str, body: dict):
     context = OpenAILLMContext(messages, tools)
     context_aggregator = llm.create_context_aggregator(context)
 
+    # RTVI events for Pipecat client UI
+    rtvi = RTVIProcessor(config=RTVIConfig(config=[]))
+
     # A core voice AI pipeline
     # Add additional processors to customize the bot's behavior
     pipeline = Pipeline(
         [
             transport.input(),
+            rtvi,
             stt,
             context_aggregator.user(),
             llm,
@@ -414,6 +436,7 @@ async def main(room_url: str, token: str, body: dict):
             enable_metrics=True,
             enable_usage_metrics=True,
         ),
+        observers=[RTVIObserver(rtvi)],
     )
 
     # Initialize handlers dict to keep references
