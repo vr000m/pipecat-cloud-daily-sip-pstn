@@ -1,3 +1,4 @@
+bot_tone.py pcc-deploy-tone.toml
 bot_voice_tonestarter.py pcc-deploy-tone.toml
 bot_voice_v0.py pcc-deploy-voice.toml
 bot_voice_v1.py pcc-deploy-voice.toml
