@@ -71,10 +71,7 @@ def generate_tone_data(freq=400, duration=5.0, sample_rate=8000):
 
 
 class SimpleAudioFrameInserter(FrameProcessor):
-    """A frame processor that inserts audio frames into the pipeline.
-
-    This processor can use either a pre-generated tone file or directly passed audio data.
-    """
+    """A frame processor that inserts audio frames into the pipeline."""
 
     def __init__(self, audio_data=None, tone_file_path=None, sample_rate=8000):
         """Initialize the SimpleAudioFrameInserter.
@@ -92,45 +89,76 @@ class SimpleAudioFrameInserter(FrameProcessor):
         self.num_frames = 0
         self.running = False
         self._send_task = None
+        logger.info(f"SimpleAudioFrameInserter initialized with frame_size: {self.frame_size}")
+
+        # Set number of frames immediately if audio_data is provided
+        if self.audio_data is not None:
+            self._calculate_frames()
+
+    def _calculate_frames(self):
+        """Calculate the number of frames from audio data."""
+        if self.audio_data is not None and len(self.audio_data) > 0:
+            self.num_frames = len(self.audio_data) // self.frame_size
+            logger.info(f"Calculated {self.num_frames} frames from {len(self.audio_data)} samples")
+
+            # Fallback if we don't have enough samples for even one frame
+            if self.num_frames == 0 and len(self.audio_data) > 0:
+                logger.warning("Not enough audio data for a full frame, creating a single frame")
+                self.num_frames = 1
+        else:
+            logger.warning("Cannot calculate frames: No audio data available")
 
     async def setup(self):
-        """Load the tone file data during setup if needed."""
+        """Prepare audio data during setup."""
         await super().setup()
+        logger.info("Setting up SimpleAudioFrameInserter")
 
         try:
-            # If audio data was passed directly, use it
+            # If audio data was already provided
             if self.audio_data is not None:
-                logger.info(f"Using provided audio data with {len(self.audio_data)} samples")
+                logger.info(f"Using provided audio data: {len(self.audio_data)} samples")
+                self._calculate_frames()
+                return
+
             # Otherwise, load from file or generate
-            elif self.tone_file_path:
+            if self.tone_file_path:
                 import soundfile as sf
 
+                logger.info(f"Loading tone file: {self.tone_file_path}")
                 self.audio_data, _ = sf.read(self.tone_file_path, dtype="int16")
-                logger.info(f"Loaded tone file with {len(self.audio_data)} samples")
+                logger.info(f"Loaded tone file: {len(self.audio_data)} samples")
             else:
                 # Generate tone data if neither was provided
+                logger.info(f"Generating tone data with sample rate {self.sample_rate}")
                 self.audio_data = generate_tone_data(
                     freq=400, duration=5.0, sample_rate=self.sample_rate
                 )
-                logger.info(f"Generated tone data with {len(self.audio_data)} samples")
+                logger.info(f"Generated tone data: {len(self.audio_data)} samples")
 
             # Calculate the number of frames and validate
             if self.frame_size <= 0:
-                raise ValueError(f"Invalid frame size: {self.frame_size}")
+                self.frame_size = 160  # Default for 8kHz, 20ms at 8bytes per sample
+                logger.warning(f"Invalid frame size, using default: {self.frame_size}")
 
-            self.num_frames = len(self.audio_data) // self.frame_size
+            self._calculate_frames()
 
-            if self.num_frames <= 0:
-                raise ValueError(
-                    f"Audio data too short for frame size. Audio length: {len(self.audio_data)}, Frame size: {self.frame_size}"
-                )
+            # if we still have 0 frames, create some fallback data
+            if self.num_frames == 0:
+                logger.warning("No frames available after setup, creating fallback data")
+                # Create 1 second of silence as fallback
+                self.audio_data = np.zeros(self.sample_rate, dtype=np.int16)
+                self.num_frames = self.sample_rate // self.frame_size
+                logger.info(f"Created fallback data with {self.num_frames} frames")
 
-            logger.info(
-                f"Audio data prepared with {self.num_frames} frames of {self.frame_size} samples each"
-            )
+            logger.info(f"Setup complete: {self.num_frames} frames of {self.frame_size} samples")
+
         except Exception as e:
-            logger.error(f"Error setting up SimpleAudioFrameInserter: {e}")
-            raise
+            logger.error(f"Error in setup: {e}")
+            # Create fallback data
+            logger.warning("Creating fallback audio data due to setup error")
+            self.audio_data = np.zeros(self.sample_rate, dtype=np.int16)
+            self.num_frames = self.sample_rate // self.frame_size
+            logger.info(f"Created fallback data with {self.num_frames} frames")
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         """Pass all frames through this processor."""
@@ -143,6 +171,18 @@ class SimpleAudioFrameInserter(FrameProcessor):
             logger.warning("Audio sender is already running")
             return
 
+        # Double-check frames before starting
+        if self.num_frames == 0:
+            logger.warning("No frames available before start_sending, recalculating")
+            self._calculate_frames()
+
+            # If we still have no frames, create fallback data
+            if self.num_frames == 0:
+                logger.warning("Creating fallback data in start_sending")
+                self.audio_data = np.zeros(self.sample_rate, dtype=np.int16)
+                self.num_frames = self.sample_rate // self.frame_size
+
+        logger.info(f"Starting audio sender with {self.num_frames} frames")
         self.running = True
         self._send_task = self.get_event_loop().create_task(self._send_loop())
 
@@ -151,6 +191,7 @@ class SimpleAudioFrameInserter(FrameProcessor):
         if not self.running:
             return
 
+        logger.info("Stopping audio sender")
         self.running = False
         if self._send_task and not self._send_task.done():
             self._send_task.cancel()
@@ -162,16 +203,22 @@ class SimpleAudioFrameInserter(FrameProcessor):
 
             # Verify that we have valid audio data and frame configuration
             if self.audio_data is None or len(self.audio_data) == 0:
-                raise ValueError("No audio data available")
+                logger.error("No audio data available in send loop")
+                self.audio_data = np.zeros(self.sample_rate, dtype=np.int16)
+                self.num_frames = self.sample_rate // self.frame_size
+                logger.info(f"Created emergency fallback with {self.num_frames} frames")
 
             if self.num_frames <= 0:
-                raise ValueError(f"Invalid number of frames: {self.num_frames}")
-
-            frame_index = 0
+                logger.error(f"Invalid number of frames: {self.num_frames}")
+                self.num_frames = self.sample_rate // self.frame_size
+                logger.info(f"Reset to {self.num_frames} frames")
 
             # Use a sliding window approach rather than fixed start time
             # to prevent drift over long periods
+            frame_index = 0
             next_frame_time = time.time()
+
+            logger.info(f"Send loop initialized with {self.num_frames} frames")
 
             while self.running:
                 # Calculate frame start position in the audio data
@@ -214,6 +261,7 @@ class SimpleAudioFrameInserter(FrameProcessor):
 
     async def teardown(self):
         """Clean up resources when the processor is shutting down."""
+        logger.info("Tearing down SimpleAudioFrameInserter")
         self.stop_sending()
         await super().teardown()
 
@@ -432,8 +480,19 @@ async def main(room_url: str, token: str, body: dict):
     )
 
     # Generate the tone data directly in memory
+    logger.info(
+        f"Generating tone data with freq=400, duration=50.0, sample_rate={AUDIO_SAMPLE_RATE}"
+    )
     tone_data = generate_tone_data(freq=400, duration=50.0, sample_rate=AUDIO_SAMPLE_RATE)
+    logger.info(f"Generated tone data with {len(tone_data)} samples")
 
+    # Validate tone data
+    if len(tone_data) == 0:
+        logger.warning("Generated tone data is empty, creating fallback data")
+        tone_data = np.zeros(AUDIO_SAMPLE_RATE * 5, dtype=np.int16)  # 5 seconds of silence
+        logger.info(f"Created fallback data with {len(tone_data)} samples")
+
+    logger.info(f"Creating SimpleAudioFrameInserter with {len(tone_data)} samples")
     # Create the audio frame inserter with the generated tone data
     audio_sender = SimpleAudioFrameInserter(audio_data=tone_data, sample_rate=AUDIO_SAMPLE_RATE)
 
@@ -514,7 +573,6 @@ async def main(room_url: str, token: str, body: dict):
     async def on_call_state_updated(transport, state):
         logger.info(f"on_call_state_updated, state: {state}")
         if state == "joined":
-            await asyncio.sleep(1)
             audio_sender.start_sending()
             # Start all dial-out calls if configured
             if dialout_settings and "dialout" in handlers:
