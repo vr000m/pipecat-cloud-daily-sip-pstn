@@ -102,8 +102,8 @@ export default async function handler(req, res) {
       const sip_config = {
         display_name: From,
         sip_mode: 'dial-in',
-        num_endpoints: call_transfer !== null ? 2 : 1,
-        codecs: {"audio": [To === "+12798670006" ? "PCMU" : "OPUS"]},
+        num_endpoints: 1, // 1 for dial-in, 2 for transfer
+        codecs: {"audio": [To === "+16502315623" ? "PCMU" : "OPUS"]},
       };
       daily_room_properties.sip = sip_config;
     }

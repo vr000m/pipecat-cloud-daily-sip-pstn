@@ -186,15 +186,24 @@ class SimpleAudioFrameInserter(FrameProcessor):
         self.running = True
         self._send_task = self.get_event_loop().create_task(self._send_loop())
 
-    def stop_sending(self):
+    async def stop_sending(self):
         """Stop sending audio frames."""
         if not self.running:
             return
 
         logger.info("Stopping audio sender")
         self.running = False
+
+        # Cancel the send task if it's running
         if self._send_task and not self._send_task.done():
-            self._send_task.cancel()
+            try:
+                self._send_task.cancel()
+                # Add timeout to prevent hanging if task doesn't respond to cancellation
+                await asyncio.wait_for(self._send_task, timeout=2.0)
+            except asyncio.TimeoutError:
+                logger.warning("Timed out waiting for audio send task to cancel")
+            except Exception as e:
+                logger.error(f"Error cancelling send task: {e}")
 
     async def _send_loop(self):
         """Send audio frames at a consistent rate."""
@@ -262,7 +271,7 @@ class SimpleAudioFrameInserter(FrameProcessor):
     async def teardown(self):
         """Clean up resources when the processor is shutting down."""
         logger.info("Tearing down SimpleAudioFrameInserter")
-        self.stop_sending()
+        await self.stop_sending()
         await super().teardown()
 
 
@@ -463,13 +472,16 @@ async def main(room_url: str, token: str, body: dict):
     using_voicemail_detection = bool(voicemail_detection and dialout_settings)
 
     logger.debug(f"Using voicemail detection: {using_voicemail_detection}")
+    daily_api_key = os.getenv("DAILY_API_KEY")
+    logger.info(f"DAILY API Key: {daily_api_key}")
 
     transport = DailyTransport(
         room_url,
         token,
         "Voice AI Bot",
         DailyParams(
-            api_key=os.getenv("DAILY_API_KEY"),  # needed for dial-in
+            api_url="https://api.staging.daily.co/v1",
+            api_key=daily_api_key,  # needed for dial-in
             dialin_settings=dialin_settings,
             audio_out_enabled=True,
             audio_out_sample_rate=AUDIO_SAMPLE_RATE,
@@ -578,8 +590,10 @@ async def main(room_url: str, token: str, body: dict):
             if dialout_settings and "dialout" in handlers:
                 for handler in handlers["dialout"]:
                     await handler.start()
-        elif state == "left":
-            audio_sender.stop_sending()
+        elif state in ["left", "leaving", "error"]:
+            # Stop audio sending for any terminal state
+            logger.info(f"Call state {state}: stopping audio sender")
+            await audio_sender.stop_sending()
             await task.cancel()
 
     @transport.event_handler("on_joined")
