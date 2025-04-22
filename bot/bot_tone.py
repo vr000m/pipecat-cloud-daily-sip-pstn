@@ -474,13 +474,15 @@ async def main(room_url: str, token: str, body: dict):
     logger.debug(f"Using voicemail detection: {using_voicemail_detection}")
     daily_api_key = os.getenv("DAILY_API_KEY")
     logger.info(f"DAILY API Key: {daily_api_key}")
+    daily_api_url = os.getenv("DAILY_URL") or "https://api.daily.co/v1"
+    logger.info(f"Daily backend url: {daily_api_url}")
 
     transport = DailyTransport(
         room_url,
         token,
         "Voice AI Bot",
         DailyParams(
-            api_url="https://api.staging.daily.co/v1",
+            api_url=daily_api_url,
             api_key=daily_api_key,  # needed for dial-in
             dialin_settings=dialin_settings,
             audio_out_enabled=True,
