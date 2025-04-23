@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD 2-Clause License
 #
-
+import asyncio
 import os
 import re
 import sys
@@ -49,7 +49,9 @@ def validate_env_vars():
 
 
 dialled_name = ""
-caller_phonenum = "+16504771871"
+DEFAULT_CALLER_PHONENUM = (
+    "+16504771871"  # Default caller phone number, can be overridden by dialin_settings
+)
 
 
 def load_prompt(template_path: str, **kwargs) -> str:
@@ -312,6 +314,7 @@ async def main(room_url: str, token: str, body: dict):
     # dialin_settings are received when a call is triggered to
     # Daily via pinless_dialin. This can be a phone number on Daily or a
     # sip interconnect from Twilio or Telnyx.
+    caller_phonenum = DEFAULT_CALLER_PHONENUM
     dialin_settings = None
     dialled_phonenum = None
     if raw_dialin_settings := body.get("dialin_settings"):
