@@ -123,11 +123,17 @@ export default async function handler(req, res) {
     logger.debug(`Daily room properties: ${JSON.stringify(daily_room_properties)}`);
 
     // Get Daily API key and agent name from environment variables
-    const pccApiKey = process.env.PIPECAT_CLOUD_API_KEY;
     const agentName = process.env.AGENT_NAME || 'my-first-agent';
+    let pccApiKey = process.env.PIPECAT_CLOUD_API_KEY_PROD;
+
+    let url = `https://api.pipecat.daily.co/v1/public/${agentName}/start`;
+    if(process.env.DAILY_ENV === 'staging') {
+      url = `https://staging.qa.pipecat.cloud/v1/public/${agentName}/start`;
+      pccApiKey = process.env.PIPECAT_CLOUD_API_KEY_STAGING;
+    }
 
     if (!pccApiKey) {
-      throw new Error('PIPECAT_CLOUD_API_KEY environment variable is not set');
+      throw new Error('PIPECAT_CLOUD_API_KEY_{PROD||STAGING} env variable is not set');
     }
 
     // Set up headers for Daily API call
@@ -136,8 +142,9 @@ export default async function handler(req, res) {
       'Content-Type': 'application/json',
     };
 
-    const url = `https://api.pipecat.daily.co/v1/public/${agentName}/start`;
-    logger.debug(`Making API call to Daily: ${url} ${JSON.stringify(headers)} ${JSON.stringify(payload)}`);
+    logger.debug(`API URL: ${url}`);  
+    logger.debug(`Headers: ${JSON.stringify(headers)}`);
+    logger.debug(`Payload: ${JSON.stringify(payload)}`);
     
     try {
       const response = await axios.post(url, payload, { headers });
