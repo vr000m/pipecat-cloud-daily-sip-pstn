@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD 2-Clause License
 #
-import asyncio
 import os
 import re
 import sys
@@ -202,6 +201,8 @@ class DialInHandler:
             logger.info("First participant joined: {}", participant["id"])
             # Capture the participant's transcription
             await transport.capture_participant_transcription(participant["id"])
+            # logger.debug("Sleeping 1sec to allow SIP to be set up")
+            # asyncio.sleep(1)  # Give some time for the SIP to be set up
 
             # For the dial-in case, we want the bot to greet the user.
             # We can prompt the bot to speak by putting the context into the pipeline.
