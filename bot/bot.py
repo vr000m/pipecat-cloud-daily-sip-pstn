@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD 2-Clause License
 #
-
 import os
 import re
 import sys
@@ -49,7 +48,9 @@ def validate_env_vars():
 
 
 dialled_name = ""
-caller_phonenum = "+16504771871"
+DEFAULT_CALLER_PHONENUM = (
+    "+16504771871"  # Default caller phone number, can be overridden by dialin_settings
+)
 
 
 def load_prompt(template_path: str, **kwargs) -> str:
@@ -200,6 +201,8 @@ class DialInHandler:
             logger.info("First participant joined: {}", participant["id"])
             # Capture the participant's transcription
             await transport.capture_participant_transcription(participant["id"])
+            # logger.debug("Sleeping 1sec to allow SIP to be set up")
+            # asyncio.sleep(1)  # Give some time for the SIP to be set up
 
             # For the dial-in case, we want the bot to greet the user.
             # We can prompt the bot to speak by putting the context into the pipeline.
@@ -312,6 +315,7 @@ async def main(room_url: str, token: str, body: dict):
     # dialin_settings are received when a call is triggered to
     # Daily via pinless_dialin. This can be a phone number on Daily or a
     # sip interconnect from Twilio or Telnyx.
+    caller_phonenum = DEFAULT_CALLER_PHONENUM
     dialin_settings = None
     dialled_phonenum = None
     if raw_dialin_settings := body.get("dialin_settings"):
@@ -337,13 +341,18 @@ async def main(room_url: str, token: str, body: dict):
     using_voicemail_detection = bool(voicemail_detection and dialout_settings)
 
     logger.debug(f"Using voicemail detection: {using_voicemail_detection}")
+    daily_api_key = os.getenv("DAILY_API_KEY")
+    logger.info(f"DAILY API Key: {daily_api_key}")
+    daily_api_url = os.getenv("DAILY_URL") or "https://api.daily.co/v1"
+    logger.info(f"Daily backend url: {daily_api_url}")
 
     transport = DailyTransport(
         room_url,
         token,
         "Voice AI Bot",
         DailyParams(
-            api_key=os.getenv("DAILY_API_KEY"),  # needed for dial-in
+            api_url=daily_api_url,
+            api_key=daily_api_key,  # needed for dial-in
             dialin_settings=dialin_settings,
             audio_out_enabled=True,
             vad_enabled=True,
