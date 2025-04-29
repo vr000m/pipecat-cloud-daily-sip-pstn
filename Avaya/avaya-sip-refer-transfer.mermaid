@@ -1,0 +1,44 @@
+sequenceDiagram
+    participant Caller as Caller (Philippines)
+    participant Avaya as Avaya Contact Center
+    participant Daily as Daily.co SIP Server
+    participant Bot as Daily Pipecat Bot
+    participant Agent as Human Agent (Avaya)
+    
+    Note over Caller,Bot: SIP Address: sip:static-address-1@custom-domain-app.sip.hostname.com
+    Note over Daily: Current hostname: signalwire.com
+    Note over Daily: Future hostname: sip.daily.co
+    
+    Caller->>Avaya: Incoming call to<br/>Filipino phone number
+    Avaya->>Daily: INVITE sip:static-address-1@custom-domain-app.sip.hostname.com
+    Daily-->>Avaya: 100 Trying
+    Daily-->>Avaya: 180 Ringing
+    Note over Avaya,Daily: Call placed on hold<br/>(custom music or ringing sound)
+    
+    Daily->>Daily: Create Pipecat bot
+    Daily->>Bot: Initialize and join call
+    Bot-->>Daily: Bot ready
+    
+    Daily-->>Avaya: 200 OK
+    Avaya-->>Daily: ACK
+    
+    Note over Avaya,Bot: RTP Media flow established
+    Avaya<->Bot: Bidirectional RTP media through Daily's infrastructure
+    
+    Note over Bot,Avaya: Call transfer process begins
+    Bot->>Daily: Request call transfer
+    Daily->>Avaya: REFER (to Agent extension)
+    Avaya-->>Daily: 202 Accepted
+    
+    Avaya->>Agent: INVITE (new call leg)
+    Agent-->>Avaya: 200 OK
+    Avaya-->>Agent: ACK
+    
+    Avaya->>Daily: NOTIFY (REFER successful)
+    Daily-->>Avaya: 200 OK
+    
+    Avaya->>Daily: BYE (terminate Daily.co connection)
+    Daily-->>Avaya: 200 OK
+    
+    Note over Caller,Agent: Direct connection established
+    Caller<->Agent: Conversation continues on Avaya system
