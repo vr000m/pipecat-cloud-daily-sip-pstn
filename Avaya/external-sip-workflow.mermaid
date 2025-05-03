@@ -1,0 +1,22 @@
+flowchart LR
+    subgraph External["External Connections"]
+        SIP_Signal["SIP/SIPS (UDP/TCP/TLS/WebSocket)"]
+        RTP_Media["RTP over UDP (Encrypted via DTLS)"]
+    end
+
+    subgraph DailyInfra["Daily Infrastructure"]
+        subgraph SIPInfra["SIP Infrastructure"]
+            SIP_Handling["SIP Proxy (floating IP: a.b.c.d"]
+            RTP_Handling["RTP Media (floating IP: p.q.r.s)"]
+        end
+
+        subgraph WebRTCInfra["WebRTC Infrastructure"]
+            Bot["Pipecat Bot"]
+        end
+    end
+
+    SIP_Signal <--> SIP_Handling
+    RTP_Media <--> RTP_Handling
+
+    SIP_Handling <--> Bot
+    RTP_Handling <--> Bot
