@@ -67,7 +67,8 @@ export default async function handler(req, res) {
       callDomain,
       dialout_settings,
       voicemail_detection,
-      call_transfer
+      call_transfer,
+      sipHeaders
     } = req.body;
 
     // Handle test requests when a webhook is configured
@@ -117,6 +118,7 @@ export default async function handler(req, res) {
         dialout_settings,
         voicemail_detection,
         call_transfer,
+        sip_headers: sipHeaders,
       },
     };
 
