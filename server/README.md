@@ -41,6 +41,11 @@ Initiates a PSTN/SIP call with the following request body format:
   "From": "+14158483432",
   "callId": "string-contains-uuid",
   "callDomain": "string-contains-uuid",
+  "sipHeaders": {
+    "X-My-Custom-Header": "value",
+    "x-caller": "+14158483432",
+    "x-called": "+14152251493",
+  },
   "dialout_settings": [
     {
       "phoneNumber": "+14158483432",
