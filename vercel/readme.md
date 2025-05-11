@@ -54,6 +54,11 @@ The endpoint handles test requests when a webhook is configured. Send a request 
   "From": "+14158483432",
   "callId": "string-contains-uuid",
   "callDomain": "string-contains-uuid",
+  "sipHeaders": {
+      "X-My-Custom-Header": "value",
+      "x-caller": "+14158483432",
+      "x-called": "+14152251493",
+   },
   // for making a dial out to a phone or SIP
   "dialout_settings": [
     {"phoneNumber": "+14158483432", "callerId": "purchased_phone_uuid"}, 
