@@ -96,7 +96,7 @@ async def read_root():
 @app.post("/api/dial")
 async def dial(request: RoomRequest, raw_request: Request):
     start_time = time.time()
-    
+
     logger.info("Incoming request to /dial:")
     logger.info(f"Headers: {dict(raw_request.headers)}")
     raw_body = await raw_request.body()
@@ -122,7 +122,9 @@ async def dial(request: RoomRequest, raw_request: Request):
         if computed_signature != signature:
             logger.error(f"Invalid signature. Expected {signature}, got {computed_signature}")
             elapsed_time = time.time() - start_time
-            logger.info(f"Request failed with 401 (Invalid signature) - Duration: {elapsed_time:.3f}s")
+            logger.info(
+                f"Request failed with 401 (Invalid signature) - Duration: {elapsed_time:.3f}s"
+            )
             raise HTTPException(status_code=401, detail="Invalid signature")
     else:
         logger.debug("Skipping HMAC validation - no signature headers present")
@@ -158,7 +160,7 @@ async def dial(request: RoomRequest, raw_request: Request):
             "display_name": request.From,
             "sip_mode": "dial-in",
             "num_endpoints": 2 if request.call_transfer is not None else 1,
-            "codecs": {"audio": ["OPUS"]},
+            "codecs": {"audio": ["PCMU"]},
             "video": False,
         }
         daily_room_properties["sip"] = sip_config
@@ -179,17 +181,23 @@ async def dial(request: RoomRequest, raw_request: Request):
         },
     }
 
-    pcc_api_key = os.getenv("PIPECAT_CLOUD_API_KEY")
     agent_name = os.getenv("AGENT_NAME", "my-first-agent")
+
+    if os.getenv("DAILY_ENV") == "staging":
+        pcc_api_key = os.getenv("PIPECAT_CLOUD_API_KEY_STAGING")
+        url = f"https://staging.qa.pipecat.cloud/v1/public/{agent_name}/start"
+    else:
+        pcc_api_key = os.getenv("PIPECAT_CLOUD_API_KEY")
+        url = f"https://api.pipecat.daily.co/v1/public/{agent_name}/start"
 
     if not pcc_api_key:
         elapsed_time = time.time() - start_time
-        logger.error(f"Request failed with 500 (PIPECAT_CLOUD_API_KEY not set) - Duration: {elapsed_time:.3f}s")
+        logger.error(
+            f"Request failed with 500 (PIPECAT_CLOUD_API_KEY not set) - Duration: {elapsed_time:.3f}s"
+        )
         raise HTTPException(status_code=500, detail="DAILY_API_KEY environment variable is not set")
 
     headers = {"Authorization": f"Bearer {pcc_api_key}", "Content-Type": "application/json"}
-
-    url = f"https://api.pipecat.daily.co/v1/public/{agent_name}/start"
 
     logger.debug(f"Making API call to Daily: {url} {headers} {payload}")
 
@@ -211,7 +219,9 @@ async def dial(request: RoomRequest, raw_request: Request):
         error_detail = e.response.json() if e.response.content else str(e)
         elapsed_time = time.time() - start_time
         logger.error(f"HTTP error: {error_detail}")
-        logger.info(f"Request failed with {status_code} (HTTP error from Daily API) - Duration: {elapsed_time:.3f}s")
+        logger.info(
+            f"Request failed with {status_code} (HTTP error from Daily API) - Duration: {elapsed_time:.3f}s"
+        )
         raise HTTPException(status_code=status_code, detail=error_detail)
     except requests.exceptions.RequestException as e:
         elapsed_time = time.time() - start_time
