@@ -95,6 +95,8 @@ async def read_root():
 
 @app.post("/api/dial")
 async def dial(request: RoomRequest, raw_request: Request):
+    start_time = time.time()
+    
     logger.info("Incoming request to /dial:")
     logger.info(f"Headers: {dict(raw_request.headers)}")
     raw_body = await raw_request.body()
@@ -119,12 +121,16 @@ async def dial(request: RoomRequest, raw_request: Request):
 
         if computed_signature != signature:
             logger.error(f"Invalid signature. Expected {signature}, got {computed_signature}")
+            elapsed_time = time.time() - start_time
+            logger.info(f"Request failed with 401 (Invalid signature) - Duration: {elapsed_time:.3f}s")
             raise HTTPException(status_code=401, detail="Invalid signature")
     else:
         logger.debug("Skipping HMAC validation - no signature headers present")
 
     if request.test == "test":
         logger.debug("Test request received")
+        elapsed_time = time.time() - start_time
+        logger.info(f"Test request completed successfully - Duration: {elapsed_time:.3f}s")
         return {"status": "success", "message": "Test request received"}
 
     dialin_settings = None
@@ -177,6 +183,8 @@ async def dial(request: RoomRequest, raw_request: Request):
     agent_name = os.getenv("AGENT_NAME", "my-first-agent")
 
     if not pcc_api_key:
+        elapsed_time = time.time() - start_time
+        logger.error(f"Request failed with 500 (PIPECAT_CLOUD_API_KEY not set) - Duration: {elapsed_time:.3f}s")
         raise HTTPException(status_code=500, detail="DAILY_API_KEY environment variable is not set")
 
     headers = {"Authorization": f"Bearer {pcc_api_key}", "Content-Type": "application/json"}
@@ -190,6 +198,8 @@ async def dial(request: RoomRequest, raw_request: Request):
         response.raise_for_status()
         response_data = response.json()
         logger.debug(f"Response: {response_data}")
+        elapsed_time = time.time() - start_time
+        logger.info(f"Request completed successfully - Duration: {elapsed_time:.3f}s")
         return {
             "status": "success",
             "data": response_data,
@@ -199,10 +209,14 @@ async def dial(request: RoomRequest, raw_request: Request):
         # Pass through the status code and error details from the Daily API
         status_code = e.response.status_code
         error_detail = e.response.json() if e.response.content else str(e)
+        elapsed_time = time.time() - start_time
         logger.error(f"HTTP error: {error_detail}")
+        logger.info(f"Request failed with {status_code} (HTTP error from Daily API) - Duration: {elapsed_time:.3f}s")
         raise HTTPException(status_code=status_code, detail=error_detail)
     except requests.exceptions.RequestException as e:
+        elapsed_time = time.time() - start_time
         logger.error(f"Request error: {str(e)}")
+        logger.info(f"Request failed with 500 (Request exception) - Duration: {elapsed_time:.3f}s")
         raise HTTPException(status_code=500, detail=str(e))
 
 
