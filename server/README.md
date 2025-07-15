@@ -78,3 +78,10 @@ Returns a JSON object containing:
 - 405: Method not allowed (e.g. incorrect route on the webhook URL)
 - 500: Server errors (missing API key, network issues)
 - Other status codes are passed through from the Daily API
+
+## Performance Monitoring
+The `/api/dial` endpoint automatically logs execution time for all requests. Timing information is logged with the format:
+- Success: `Request completed successfully - Duration: X.XXXs`
+- Failures: `Request failed with [STATUS_CODE] ([REASON]) - Duration: X.XXXs`
+
+This helps monitor API performance and identify bottlenecks in the request handling pipeline.
