@@ -6,7 +6,7 @@ Pipecat Cloud [pstn_sip starter image](https://github.com/daily-co/pipecat-cloud
 In addition you can use `/api/dial` to trigger dial-out, and 
 eventually, call-transfers.
 
-1. [FastAPI Server](simple-python/README.md) - 
+1. [FastAPI Server](server/README.md) - 
 A FastAPI implementation that handles PSTN (Public Switched Telephone 
 Network) and SIP (Session Initiation Protocol) calls using the Daily API.
 
@@ -14,7 +14,11 @@ Network) and SIP (Session Initiation Protocol) calls using the Daily API.
 A Next.js API implementation designed for deployment on Vercel's 
 serverless platform.
 
-Both implementations provide:
+3. [Pipecat Bot](bot/README.md) - 
+The Pipecat.ai voice bot implementation that handles the actual phone 
+conversations using AI services (Deepgram, OpenAI, Cartesia).
+
+Both server implementations provide:
 - HMAC signature validation for pinless webhook 
 - Structured logging
 - Support for dialin and dialout settings
