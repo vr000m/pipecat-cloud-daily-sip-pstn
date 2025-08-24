@@ -1,0 +1,8 @@
+pipecat-ai[openai,cartesia,silero,daily,deepgram]==0.0.80
+daily-python~=0.19.7
+deepgram-sdk~=3.8.0
+python-dotenv
+pipecatcloud
+numpy>=1.22.0
+scipy>=1.8.0
+soundfile>=0.10.3
