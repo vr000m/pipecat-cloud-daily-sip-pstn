@@ -1,0 +1,10 @@
+prod:
+  phone_numbers:
+    - id:15aad0ec-4d50-4c7f-aa0d-2158316deb03
+    number:"+16504771871"
+    
+staging:
+  phone_numbers:
+    - id:dced7bb8-9b95-43f0-ba57-f68c4a56ac59
+    number:"+16502315625"
+
