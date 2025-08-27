@@ -6,10 +6,12 @@
     "dev": "next dev -p 7860",
     "build": "next build",
     "start": "next start -p 7860",
-    "lint": "next lint"
+    "lint": "next lint",
+    "update-phones": "node scripts/update-phone-config.js"
   },
   "dependencies": {
     "axios": "^1.6.0",
+    "dotenv": "^17.2.1",
     "js-yaml": "^4.1.0",
     "next": "^14.0.0",
     "pino": "^8.15.0",

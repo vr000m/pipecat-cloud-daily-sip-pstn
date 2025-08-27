@@ -6,7 +6,8 @@ Next.js API routes for handling Daily Pipecat requests.
 
 - API endpoint for handling Daily Pipecat requests
 - Dynamic environment routing based on phone numbers
-- HMAC signature validation
+- Automatic phone configuration sync from Daily API
+- Per-phone-number HMAC signature validation for enhanced security
 - Structured logging with Pino
 - Support for dialin and dialout settings
 - Voicemail detection and call transfer functionality
@@ -27,9 +28,9 @@ Next.js API routes for handling Daily Pipecat requests.
    PINLESS_HMAC_SECRET=your_hmac_secret
    LOG_LEVEL=info
    ```
-4. Configure phone numbers in `phone.yml`:
-   - Map your production phone numbers to `prod` environment
-   - Map your staging phone numbers to `staging` environment
+4. Configure phone numbers:
+   - Option A: Manually edit `phone.yml` to map phone numbers to environments
+   - Option B: Auto-fetch from Daily API using `npm run update-phones` (requires DAILY_API_KEY_* env vars)
 5. Run the development server:
    ```bash
    npm run dev
@@ -72,6 +73,50 @@ The endpoint handles test requests when a webhook is configured. Send a request 
 }
 ```
 
+## Phone Number Management
+
+### Automatic Phone Configuration
+
+The application can automatically fetch and sync phone numbers from your Daily account:
+
+```bash
+# Fetch phone numbers from both prod and staging Daily APIs
+npm run update-phones
+```
+
+This command will:
+- Connect to both production and staging Daily APIs
+- Fetch all configured phone numbers with their HMAC secrets
+- Update `phone.yml` with the latest configuration
+- Show a summary of discovered phone numbers
+
+**Security Note**: Each phone number has its own HMAC secret that's automatically fetched from Daily. This provides better security than using a single shared secret.
+
+### Manual Phone Configuration
+
+You can also manually edit `phone.yml` to add or modify phone numbers:
+
+```yaml
+prod:
+  phone_numbers:
+    - id: "unique-id"
+      number: "+1234567890"
+      description: "Main production line"
+      webhook_url: "https://your-webhook.com/api/dial"
+      sip_uri: "sip:address@example.com"
+      hmac_secret: "base64-encoded-secret"
+      type: "pinless_dialin"
+
+staging:
+  phone_numbers:
+    - id: "unique-id"
+      number: "+1987654321"
+      description: "Testing line"
+      webhook_url: "https://your-webhook.com/api/dial"
+      hmac_secret: "base64-encoded-secret"
+      type: "pinless_dialin"
+```
+
 ## Deployment
 
 The application is configured for Vercel deployment:
@@ -79,9 +124,10 @@ The application is configured for Vercel deployment:
 1. Push your code to a Git repository
 2. Import your project in Vercel dashboard
 3. Configure environment variables:
-   - `PIPECAT_CLOUD_API_KEY`
-   - `AGENT_NAME`
-   - `PINLESS_HMAC_SECRET`
+   - `PIPECAT_CLOUD_API_KEY_PROD` - Production Pipecat Cloud API key
+   - `PIPECAT_CLOUD_API_KEY_STAGING` - Staging Pipecat Cloud API key
+   - `AGENT_NAME` - Your agent name
+   - `PINLESS_HMAC_SECRET` - HMAC secret for webhook validation
    - `LOG_LEVEL` (optional, defaults to 'info')
 4. Deploy!
 
@@ -101,6 +147,8 @@ Vercel CLI 41.4.1
 
 ## Security
 
-- HMAC signature validation for request authentication
+- Per-phone-number HMAC signature validation for enhanced security
+- Each phone number has its own HMAC secret (automatically synced from Daily)
 - Environment variables for sensitive credentials
 - Method validation (POST only for /dial)
+- Automatic fallback to environment variable HMAC if phone-specific secret not found
