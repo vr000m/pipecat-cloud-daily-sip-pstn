@@ -5,6 +5,7 @@ Next.js API routes for handling Daily Pipecat requests.
 ## Features
 
 - API endpoint for handling Daily Pipecat requests
+- Dynamic environment routing based on phone numbers
 - HMAC signature validation
 - Structured logging with Pino
 - Support for dialin and dialout settings
@@ -20,12 +21,16 @@ Next.js API routes for handling Daily Pipecat requests.
    ```
 3. Create `.env.local` file with your credentials:
    ```
-   PIPECAT_CLOUD_API_KEY=pk_*
+   PIPECAT_CLOUD_API_KEY_PROD=pk_prod_*
+   PIPECAT_CLOUD_API_KEY_STAGING=pk_staging_*
    AGENT_NAME=my-first-agent
    PINLESS_HMAC_SECRET=your_hmac_secret
    LOG_LEVEL=info
    ```
-4. Run the development server:
+4. Configure phone numbers in `phone.yml`:
+   - Map your production phone numbers to `prod` environment
+   - Map your staging phone numbers to `staging` environment
+5. Run the development server:
    ```bash
    npm run dev
    ```
