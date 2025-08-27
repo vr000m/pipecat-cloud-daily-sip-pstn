@@ -183,6 +183,11 @@ This starter comes with different bot implementations to help you get started:
 
 The deploy script will automatically detect these files and let you choose which one to use.
 
+## Deploying to pipecat staging
+
+export PIPECAT_API_HOST=https://staging.qa.pipecat.cloud
+
+
 ## Coming Soon
 
 - Native handling of incoming calls directly within Daily
