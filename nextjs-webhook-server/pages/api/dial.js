@@ -1,6 +1,86 @@
 import { logger } from '../../lib/utils'; 
 import axios from 'axios';
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
+import yaml from 'js-yaml';
+
+// Load phone configuration
+const loadPhoneConfig = () => {
+  try {
+    const configPath = path.join(process.cwd(), 'phone.yml');
+    const fileContents = fs.readFileSync(configPath, 'utf8');
+    return yaml.load(fileContents);
+  } catch (error) {
+    logger.error('Error loading phone.yml:', error);
+    return null;
+  }
+};
+
+// Cache the phone config at startup
+const phoneConfig = loadPhoneConfig();
+
+// Helper function to normalize phone numbers (remove spaces, dashes, etc.)
+const normalizePhoneNumber = (phoneNumber) => {
+  if (!phoneNumber) return null;
+  // Remove all non-digit characters except the leading +
+  return phoneNumber.replace(/[^\d+]/g, '');
+};
+
+// Determine environment based on phone number
+const getEnvironmentForPhoneNumber = (phoneNumber) => {
+  if (!phoneConfig || !phoneNumber) {
+    logger.warn('Phone config not loaded or phone number not provided, defaulting to production');
+    return 'prod';
+  }
+
+  const normalizedNumber = normalizePhoneNumber(phoneNumber);
+  logger.debug(`Checking environment for normalized number: ${normalizedNumber}`);
+
+  // Check each environment
+  for (const [env, config] of Object.entries(phoneConfig)) {
+    if (config.phone_numbers) {
+      for (const phone of config.phone_numbers) {
+        if (normalizePhoneNumber(phone.number) === normalizedNumber) {
+          logger.info(`Phone number ${normalizedNumber} mapped to environment: ${env}`);
+          return env;
+        }
+      }
+    }
+  }
+
+  logger.warn(`Phone number ${normalizedNumber} not found in config, defaulting to production`);
+  return 'prod';
+};
+
+// Get HMAC secret for a specific phone number
+const getHmacSecretForPhoneNumber = (phoneNumber) => {
+  if (!phoneConfig || !phoneNumber) {
+    logger.debug('Using default HMAC secret from environment');
+    return process.env.PINLESS_HMAC_SECRET;
+  }
+
+  const normalizedNumber = normalizePhoneNumber(phoneNumber);
+  
+  // Search through all environments for the phone number
+  for (const [env, config] of Object.entries(phoneConfig)) {
+    if (config.phone_numbers) {
+      for (const phone of config.phone_numbers) {
+        if (normalizePhoneNumber(phone.number) === normalizedNumber) {
+          if (phone.hmac_secret) {
+            logger.debug(`Using HMAC secret for phone number ${normalizedNumber}`);
+            return phone.hmac_secret;
+          }
+          break;
+        }
+      }
+    }
+  }
+
+  // Fall back to environment variable
+  logger.debug('Phone-specific HMAC not found, using default from environment');
+  return process.env.PINLESS_HMAC_SECRET;
+};
 
 const validateSignature = (body, signature, timestamp, secret) => {
   // Skip if any required fields are missing
@@ -47,13 +127,32 @@ export default async function handler(req, res) {
     
     if (signature && timestamp) {
       logger.info('Validating HMAC signature');
-      if (!validateSignature(rawBody, signature, timestamp, process.env.PINLESS_HMAC_SECRET)) {
-        logger.error('Invalid HMAC signature', { signature, timestamp });
+      
+      // Extract the 'To' field from the request body to determine which phone's HMAC to use
+      const targetPhoneNumber = req.body.To || req.body.to;
+      const hmacSecret = getHmacSecretForPhoneNumber(targetPhoneNumber);
+      
+      if (!hmacSecret) {
+        logger.error('No HMAC secret found for validation');
+        return res.status(401).json({ 
+          error: 'Invalid configuration',
+          message: 'No HMAC secret configured'
+        });
+      }
+      
+      if (!validateSignature(rawBody, signature, timestamp, hmacSecret)) {
+        logger.error('Invalid HMAC signature', { 
+          signature, 
+          timestamp,
+          phoneNumber: targetPhoneNumber 
+        });
         return res.status(401).json({ 
           error: 'Invalid signature',
           message: 'Invalid HMAC signature'
         });
       }
+      
+      logger.info('HMAC signature validated successfully');
     } else {
       logger.info('Skipping HMAC validation - no signature headers present');
     }
@@ -125,18 +224,54 @@ export default async function handler(req, res) {
 
     logger.debug(`Daily room properties: ${JSON.stringify(daily_room_properties)}`);
 
-    // Get Daily API key and agent name from environment variables
-    const agentName = process.env.AGENT_NAME || 'my-first-agent';
-    let pccApiKey = process.env.PIPECAT_CLOUD_API_KEY_PROD;
+    // Determine environment based on phone number
+    let targetPhoneNumber = null;
+    let detectedEnvironment = 'prod';
 
-    let url = `https://api.pipecat.daily.co/v1/public/${agentName}/start`;
-    if(process.env.DAILY_ENV === 'staging') {
-      url = `https://staging.qa.pipecat.cloud/v1/public/${agentName}/start`;
+    // For dial-in, use the 'To' field (the number being called)
+    if (dialin_settings && dialin_settings.To) {
+      targetPhoneNumber = dialin_settings.To;
+      detectedEnvironment = getEnvironmentForPhoneNumber(targetPhoneNumber);
+      logger.info(`Dial-in detected. Using 'To' number ${targetPhoneNumber} -> Environment: ${detectedEnvironment}`);
+    }
+    // For dial-out, use the 'From' field in dialout_settings (the caller ID)
+    else if (dialout_settings && dialout_settings.length > 0) {
+      // Look for a callerId in the first dialout setting
+      const firstDialout = dialout_settings[0];
+      if (firstDialout.callerId) {
+        // The callerId might be a UUID, so we need to look it up in our config
+        // For now, we'll check if any dialout_settings has a phoneNumber that matches our config
+        for (const setting of dialout_settings) {
+          if (setting.phoneNumber) {
+            const env = getEnvironmentForPhoneNumber(setting.phoneNumber);
+            if (env !== 'prod') {
+              detectedEnvironment = env;
+              targetPhoneNumber = setting.phoneNumber;
+              break;
+            }
+          }
+        }
+      }
+      logger.info(`Dial-out detected. Environment: ${detectedEnvironment}`);
+    }
+
+    // Get agent name and API configuration based on environment
+    const agentName = process.env.AGENT_NAME || 'my-first-agent';
+    let pccApiKey;
+    let url;
+
+    if (detectedEnvironment === 'staging') {
       pccApiKey = process.env.PIPECAT_CLOUD_API_KEY_STAGING;
+      url = `https://staging.qa.pipecat.cloud/v1/public/${agentName}/start`;
+      logger.info('Using STAGING environment configuration');
+    } else {
+      pccApiKey = process.env.PIPECAT_CLOUD_API_KEY_PROD;
+      url = `https://api.pipecat.daily.co/v1/public/${agentName}/start`;
+      logger.info('Using PRODUCTION environment configuration');
     }
 
     if (!pccApiKey) {
-      throw new Error('PIPECAT_CLOUD_API_KEY_{PROD||STAGING} env variable is not set');
+      throw new Error(`PIPECAT_CLOUD_API_KEY_${detectedEnvironment.toUpperCase()} env variable is not set`);
     }
 
     // Set up headers for Daily API call
