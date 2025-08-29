@@ -375,6 +375,15 @@ export default async function handler(req, res) {
     else if (dialout_settings && dialout_settings.length > 0) {
       const firstDialout = dialout_settings[0];
       
+      // Validate that dialout_settings has a valid target (phoneNumber or sipUri)
+      if (!firstDialout.phoneNumber && !firstDialout.sipUri) {
+        logger.error('Dial-out settings provided but no phoneNumber or sipUri specified');
+        return res.status(400).json({
+          error: 'Invalid dialout_settings',
+          message: 'dialout_settings must contain either phoneNumber or sipUri'
+        });
+      }
+      
       if (firstDialout.callerId) {
         // Reject if callerId is a phone number instead of UUID
         if (firstDialout.callerId.match(/^\+?\d+$/)) {

@@ -67,9 +67,11 @@ The endpoint handles test requests when a webhook is configured. Send a request 
    },
   // for making a dial out to a phone or SIP
   "dialout_settings": [
-    {"phoneNumber": "+14158483432", "callerId": "purchased_phone_uuid"}, 
+    {"phoneNumber": "+14158483432", "callerId": "273c21bd-fc3a-4dc9-b743-789bcd299bf2"}, 
     {"sipUri": "sip:username@sip.hostname.com"}
   ],
+  
+  // Note: callerId must be the purchased_phone_id from phone.yml, not the dialin config id
 }
 ```
 
@@ -86,13 +88,20 @@ npm run update-phones
 
 This command will:
 - Connect to both production and staging Daily APIs
-- Fetch all configured phone numbers with their HMAC secrets
-- Update `phone.yml` with the latest configuration
+- Fetch dialin configurations and purchased phone number IDs
+- Match phone numbers between both API endpoints to get complete configuration
+- Update `phone.yml` with the latest configuration including both ID types
 - Show a summary of discovered phone numbers
+
+**Important**: The script fetches from two different API endpoints:
+- `/v1/domain-dialin-config` - provides dialin config IDs, HMAC secrets, and SIP URIs
+- `/v1/purchased-phone-numbers` - provides purchased phone number UUIDs for callerId
 
 **Security Note**: Each phone number and SIP URI has its own HMAC secret that's automatically fetched from Daily. This provides better security than using a single shared secret.
 
 **SIP URI Support**: The webhook can handle both phone numbers and SIP URIs in the `To` field. The system automatically detects whether it's a phone number or SIP URI and looks up the appropriate configuration.
+
+**CallerId Requirements**: When using `dialout_settings`, the `callerId` field must contain the purchased phone number UUID (not the dialin config ID). The system validates this and will reject requests where `callerId` is a phone number instead of a UUID.
 
 ### Manual Phone Configuration
 
@@ -101,7 +110,8 @@ You can also manually edit `phone.yml` to add or modify phone numbers:
 ```yaml
 prod:
   phone_numbers:
-    - id: "unique-id"
+    - id: "dialin-config-uuid"                    # Dialin config ID
+      purchased_phone_id: "purchased-phone-uuid" # Purchased phone number ID (for callerId)
       number: "+1234567890"
       description: "Main production line"
       webhook_url: "https://your-webhook.com/api/dial"
@@ -111,7 +121,8 @@ prod:
 
 staging:
   phone_numbers:
-    - id: "unique-id"
+    - id: "dialin-config-uuid"                    # Dialin config ID
+      purchased_phone_id: "purchased-phone-uuid" # Purchased phone number ID (for callerId)
       number: "+1987654321"
       description: "Testing line"
       webhook_url: "https://your-webhook.com/api/dial"
