@@ -92,6 +92,23 @@ const normalizeSipUri = (sipUri) => {
   return normalized;
 };
 
+// Helper function to look up phone configuration by purchased phone ID (UUID)
+const getPhoneConfigById = (purchasedPhoneId) => {
+  if (!phoneConfig || !purchasedPhoneId) return null;
+  
+  for (const [env, config] of Object.entries(phoneConfig)) {
+    if (config.phone_numbers) {
+      for (const phone of config.phone_numbers) {
+        // Check purchased_phone_id first (new field), fallback to id for backward compatibility
+        if (phone.purchased_phone_id === purchasedPhoneId || phone.id === purchasedPhoneId) {
+          return { ...phone, environment: env };
+        }
+      }
+    }
+  }
+  return null;
+};
+
 // Determine environment based on phone number or SIP URI
 const getEnvironmentForDialIdentifier = (identifier) => {
   if (!phoneConfig || !identifier) {
@@ -354,25 +371,39 @@ export default async function handler(req, res) {
       const identifierType = targetIdentifier.includes('@') || targetIdentifier.startsWith('sip:') ? 'SIP URI' : 'phone number';
       logger.info(`Dial-in detected. Using 'To' ${identifierType}: ${targetIdentifier} -> Environment: ${detectedEnvironment}`);
     }
-    // For dial-out, use the 'From' field in dialout_settings (the caller ID)
+    // For dial-out, use the callerId to determine environment
     else if (dialout_settings && dialout_settings.length > 0) {
-      // Look for a callerId in the first dialout setting
       const firstDialout = dialout_settings[0];
+      
       if (firstDialout.callerId) {
-        // The callerId might be a UUID, so we need to look it up in our config
-        // For now, we'll check if any dialout_settings has a phoneNumber that matches our config
-        for (const setting of dialout_settings) {
-          if (setting.phoneNumber) {
-            const env = getEnvironmentForDialIdentifier(setting.phoneNumber);
-            if (env !== 'prod') {
-              detectedEnvironment = env;
-              targetIdentifier = setting.phoneNumber;
-              break;
-            }
-          }
+        // Reject if callerId is a phone number instead of UUID
+        if (firstDialout.callerId.match(/^\+?\d+$/)) {
+          logger.error(`Dial-out rejected. callerId ${firstDialout.callerId} appears to be a phone number, but should be a UUID`);
+          return res.status(400).json({ 
+            error: 'Invalid callerId',
+            message: 'callerId should be a UUID, not a phone number'
+          });
         }
+        
+        // Look up callerId UUID in our phone config
+        const phoneConfigResult = getPhoneConfigById(firstDialout.callerId);
+        
+        if (phoneConfigResult) {
+          // Found phone config by UUID - use that environment
+          detectedEnvironment = phoneConfigResult.environment;
+          targetIdentifier = phoneConfigResult.number;
+          logger.info(`Dial-out detected. Found callerId UUID ${firstDialout.callerId} -> ${phoneConfigResult.number} in ${detectedEnvironment}`);
+        } else {
+          // callerId UUID not found in config - default to prod
+          detectedEnvironment = 'prod';
+          logger.info(`Dial-out detected. callerId UUID ${firstDialout.callerId} not found in config, defaulting to prod environment`);
+        }
+      } else {
+        // No callerId provided - default to prod
+        detectedEnvironment = 'prod';
+        logger.info('Dial-out detected. No callerId provided, defaulting to prod environment');
       }
-      logger.info(`Dial-out detected. Environment: ${detectedEnvironment}`);
+      logger.info(`Dial-out detected. Final environment: ${detectedEnvironment}`);
     }
 
     // Get agent name and API configuration based on environment

@@ -186,7 +186,7 @@ The deploy script will automatically detect these files and let you choose which
 ## Deploying to pipecat staging
 
 export PIPECAT_API_HOST=https://staging.qa.pipecat.cloud
-
+export PIPECAT_API_HOST=https://api.pipecat.daily.co
 
 ## Coming Soon
 

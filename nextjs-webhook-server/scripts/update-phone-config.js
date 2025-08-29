@@ -9,7 +9,7 @@ const axios = require('axios');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env.local') });
 
 /**
- * Fetch phone numbers from Daily API
+ * Fetch phone numbers from Daily API (dialin config)
  * @param {string} apiKey - The API key for authentication
  * @param {string} apiUrl - The API URL (prod or staging)
  * @returns {Promise<Array>} - Array of phone configurations
@@ -21,7 +21,7 @@ async function fetchPhoneNumbers(apiKey, apiUrl) {
   }
 
   try {
-    console.log(`Fetching phone numbers from ${apiUrl}...`);
+    console.log(`Fetching dialin config from ${apiUrl}...`);
     const response = await axios.get(`${apiUrl}/v1/domain-dialin-config`, {
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -30,12 +30,48 @@ async function fetchPhoneNumbers(apiKey, apiUrl) {
     });
 
     if (response.data && response.data.data) {
-      console.log(`Found ${response.data.data.length} phone numbers from ${apiUrl}`);
+      console.log(`Found ${response.data.data.length} dialin configs from ${apiUrl}`);
       return response.data.data;
     }
     return [];
   } catch (error) {
-    console.error(`Error fetching from ${apiUrl}:`, error.message);
+    console.error(`Error fetching dialin config from ${apiUrl}:`, error.message);
+    if (error.response) {
+      console.error('Response status:', error.response.status);
+      console.error('Response data:', error.response.data);
+    }
+    return [];
+  }
+}
+
+/**
+ * Fetch purchased phone numbers from Daily API
+ * @param {string} apiKey - The API key for authentication
+ * @param {string} apiUrl - The API URL (prod or staging)
+ * @returns {Promise<Array>} - Array of purchased phone numbers
+ */
+async function fetchPurchasedPhoneNumbers(apiKey, apiUrl) {
+  if (!apiKey) {
+    console.log(`No API key provided for ${apiUrl}, skipping purchased phone numbers...`);
+    return [];
+  }
+
+  try {
+    console.log(`Fetching purchased phone numbers from ${apiUrl}...`);
+    const response = await axios.get(`${apiUrl}/v1/purchased-phone-numbers`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (response.data && response.data.data) {
+      console.log(`Found ${response.data.data.length} purchased phone numbers from ${apiUrl}`);
+      return response.data.data;
+    }
+    return [];
+  } catch (error) {
+    console.error(`Error fetching purchased phone numbers from ${apiUrl}:`, error.message);
     if (error.response) {
       console.error('Response status:', error.response.status);
       console.error('Response data:', error.response.data);
@@ -46,14 +82,26 @@ async function fetchPhoneNumbers(apiKey, apiUrl) {
 
 /**
  * Transform Daily API response to our phone.yml format
- * @param {Array} dailyPhones - Array of phone configs from Daily API
+ * @param {Array} dailyPhones - Array of phone configs from Daily API (dialin config)
+ * @param {Array} purchasedPhones - Array of purchased phone numbers from Daily API
  * @returns {Array} - Transformed phone configurations
  */
-function transformPhoneData(dailyPhones) {
+function transformPhoneData(dailyPhones, purchasedPhones = []) {
   // Debug log the first phone object to see structure
   if (dailyPhones.length > 0) {
-    console.log('Sample phone object structure:', JSON.stringify(dailyPhones[0], null, 2));
+    console.log('Sample dialin config structure:', JSON.stringify(dailyPhones[0], null, 2));
   }
+  if (purchasedPhones.length > 0) {
+    console.log('Sample purchased phone structure:', JSON.stringify(purchasedPhones[0], null, 2));
+  }
+
+  // Create a lookup map for purchased phone numbers by number
+  const purchasedLookup = {};
+  purchasedPhones.forEach(purchased => {
+    if (purchased.number) {
+      purchasedLookup[purchased.number] = purchased.id;
+    }
+  });
 
   return dailyPhones
     .filter(phone => {
@@ -64,15 +112,25 @@ function transformPhoneData(dailyPhones) {
       }
       return hasPhoneNumber;
     })
-    .map(phone => ({
-      id: phone.id,
-      number: phone.config.phone_number,
-      description: phone.config.name_prefix || phone.config.name || 'Phone number from Daily',
-      webhook_url: phone.config.room_creation_api || null,
-      sip_uri: phone.config.sip_uri || null,
-      hmac_secret: phone.config.hmac || null,
-      type: phone.type || null
-    }));
+    .map(phone => {
+      const phoneNumber = phone.config.phone_number;
+      const purchasedPhoneId = purchasedLookup[phoneNumber];
+      
+      if (!purchasedPhoneId) {
+        console.log(`Warning: No purchased phone ID found for ${phoneNumber}`);
+      }
+      
+      return {
+        id: phone.id, // dialin config ID
+        purchased_phone_id: purchasedPhoneId || null, // purchased phone number ID for callerId
+        number: phoneNumber,
+        description: phone.config.name_prefix || phone.config.name || 'Phone number from Daily',
+        webhook_url: phone.config.room_creation_api || null,
+        sip_uri: phone.config.sip_uri || null,
+        hmac_secret: phone.config.hmac || null,
+        type: phone.type || null
+      };
+    });
 }
 
 /**
@@ -85,10 +143,15 @@ async function updatePhoneConfig() {
   const prodApiKey = process.env.DAILY_API_KEY_PROD || process.env.PIPECAT_CLOUD_API_KEY_PROD;
   const stagingApiKey = process.env.DAILY_API_KEY_STAGING || process.env.PIPECAT_CLOUD_API_KEY_STAGING;
 
+  // Fetch dialin configs
   const prodPhones = await fetchPhoneNumbers(prodApiKey, 'https://api.daily.co');
   const stagingPhones = await fetchPhoneNumbers(stagingApiKey, 'https://api.staging.daily.co');
 
-  // Transform the data
+  // Fetch purchased phone numbers
+  const prodPurchasedPhones = await fetchPurchasedPhoneNumbers(prodApiKey, 'https://api.daily.co');
+  const stagingPurchasedPhones = await fetchPurchasedPhoneNumbers(stagingApiKey, 'https://api.staging.daily.co');
+
+  // Transform the data by merging dialin configs with purchased phone IDs
   const phoneConfig = {
     '# Phone number to environment mapping': null,
     '# This file maps phone numbers to their respective environments (prod/staging)': null,
@@ -97,10 +160,10 @@ async function updatePhoneConfig() {
     '# Last updated': new Date().toISOString(),
     '': null,
     prod: {
-      phone_numbers: transformPhoneData(prodPhones)
+      phone_numbers: transformPhoneData(prodPhones, prodPurchasedPhones)
     },
     staging: {
-      phone_numbers: transformPhoneData(stagingPhones)
+      phone_numbers: transformPhoneData(stagingPhones, stagingPurchasedPhones)
     }
   };
 
@@ -182,4 +245,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { updatePhoneConfig, fetchPhoneNumbers, transformPhoneData };
+module.exports = { updatePhoneConfig, fetchPhoneNumbers, fetchPurchasedPhoneNumbers, transformPhoneData };
