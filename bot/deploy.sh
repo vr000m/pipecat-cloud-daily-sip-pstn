@@ -63,8 +63,8 @@ else
 fi
 
 # Extract version from toml file
-VERSION=$(grep 'image' pcc-deploy.toml | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
-IMAGE_NAME=$(grep 'image' pcc-deploy.toml | cut -d'"' -f2 | cut -d':' -f1)
+VERSION=$(grep -E '^image\s*=' pcc-deploy.toml | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+IMAGE_NAME=$(grep -E '^image\s*=' pcc-deploy.toml | sed -E 's/^image\s*=\s*"([^:"]+).*/\1/')ß
 BASE_NAME=$(basename "$IMAGE_NAME")
 AGENT_NAME=$(grep 'agent_name' pcc-deploy.toml | cut -d'"' -f2)
 

@@ -29,7 +29,6 @@ from pipecat.services.llm_service import LLMService
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.transports.base_transport import BaseTransport
 from pipecat.transports.services.daily import DailyParams, DailyTransport
-from pipecatcloud.agent import DailySessionArguments
 
 load_dotenv(override=True)
 logger.remove()
@@ -423,12 +422,18 @@ async def bot(runner_args: RunnerArguments):
     else:
         krisp_filter = None
 
+    daily_api_key = os.getenv("DAILY_API_KEY")
+    logger.info(f"DAILY API Key: {daily_api_key}")
+    daily_api_url = os.getenv("DAILY_URL") or "https://api.daily.co/v1"
+    logger.info(f"Daily backend url: {daily_api_url}")
+
     transport = DailyTransport(
         runner_args.room_url,
         runner_args.token,
         "Pipecat Bot",
         params=DailyParams(
-            api_key=os.getenv("DAILY_API_KEY"),  # needed for dial-in
+            api_url=daily_api_url,
+            api_key=daily_api_key,  # needed for dial-in
             dialin_settings=dialin_settings,
             audio_in_enabled=True,
             audio_in_filter=krisp_filter,
