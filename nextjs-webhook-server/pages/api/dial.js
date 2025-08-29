@@ -20,65 +20,183 @@ const loadPhoneConfig = () => {
 // Cache the phone config at startup
 const phoneConfig = loadPhoneConfig();
 
-// Helper function to normalize phone numbers (remove spaces, dashes, etc.)
+// Helper function to normalize phone numbers (remove spaces, dashes, convert letters to numbers)
 const normalizePhoneNumber = (phoneNumber) => {
   if (!phoneNumber) return null;
-  // Remove all non-digit characters except the leading +
-  return phoneNumber.replace(/[^\d+]/g, '');
+  
+  // Phone keypad letter to number mapping
+  const letterToNumber = {
+    'a': '2', 'b': '2', 'c': '2',
+    'd': '3', 'e': '3', 'f': '3',
+    'g': '4', 'h': '4', 'i': '4',
+    'j': '5', 'k': '5', 'l': '5',
+    'm': '6', 'n': '6', 'o': '6',
+    'p': '7', 'q': '7', 'r': '7', 's': '7',
+    't': '8', 'u': '8', 'v': '8',
+    'w': '9', 'x': '9', 'y': '9', 'z': '9'
+  };
+  
+  // Check if starts with +
+  const hasPlus = phoneNumber.charAt(0) === '+';
+  
+  // Convert letters to numbers and keep only digits
+  let normalized = '';
+  const lowercased = phoneNumber.toLowerCase();
+  
+  for (let i = 0; i < lowercased.length; i++) {
+    const char = lowercased[i];
+    if (letterToNumber[char]) {
+      // Convert letter to corresponding number
+      normalized += letterToNumber[char];
+    } else if (/\d/.test(char)) {
+      // Keep digits
+      normalized += char;
+    }
+    // Skip all other characters (spaces, dashes, parentheses, etc.)
+  }
+  
+  // Add back the + if it was there originally
+  return hasPlus ? '+' + normalized : normalized;
 };
 
-// Determine environment based on phone number
-const getEnvironmentForPhoneNumber = (phoneNumber) => {
-  if (!phoneConfig || !phoneNumber) {
-    logger.warn('Phone config not loaded or phone number not provided, defaulting to production');
+// Helper function to normalize SIP URIs for comparison
+const normalizeSipUri = (sipUri) => {
+  if (!sipUri) return null;
+  
+  let normalized = sipUri;
+  
+  // Remove sip: prefix if present (case-insensitive)
+  if (normalized.toLowerCase().startsWith('sip:')) {
+    normalized = normalized.substring(4);
+  }
+  
+  // Remove port number (e.g., :5060)
+  normalized = normalized.replace(/:\d+/, '');
+  
+  // Remove query parameters (everything after ?)
+  const queryIndex = normalized.indexOf('?');
+  if (queryIndex !== -1) {
+    normalized = normalized.substring(0, queryIndex);
+  }
+  
+  // Remove URI parameters (everything after ;)
+  const paramIndex = normalized.indexOf(';');
+  if (paramIndex !== -1) {
+    normalized = normalized.substring(0, paramIndex);
+  }
+  
+  // Convert to lowercase for case-insensitive comparison
+  normalized = normalized.toLowerCase().trim();
+  
+  logger.debug(`Normalized SIP URI: ${sipUri} -> ${normalized}`);
+  return normalized;
+};
+
+// Determine environment based on phone number or SIP URI
+const getEnvironmentForDialIdentifier = (identifier) => {
+  if (!phoneConfig || !identifier) {
+    logger.warn('Phone config not loaded or identifier not provided, defaulting to production');
     return 'prod';
   }
 
-  const normalizedNumber = normalizePhoneNumber(phoneNumber);
-  logger.debug(`Checking environment for normalized number: ${normalizedNumber}`);
-
-  // Check each environment
-  for (const [env, config] of Object.entries(phoneConfig)) {
-    if (config.phone_numbers) {
-      for (const phone of config.phone_numbers) {
-        if (normalizePhoneNumber(phone.number) === normalizedNumber) {
-          logger.info(`Phone number ${normalizedNumber} mapped to environment: ${env}`);
-          return env;
+  // Check if identifier is a SIP URI (contains @ or starts with sip:)
+  const isSipUri = identifier.includes('@') || identifier.startsWith('sip:');
+  
+  if (isSipUri) {
+    logger.debug(`Checking environment for SIP URI: ${identifier}`);
+    const normalizedInputSip = normalizeSipUri(identifier);
+    
+    // Check each environment for matching SIP URI
+    for (const [env, config] of Object.entries(phoneConfig)) {
+      if (config.phone_numbers) {
+        for (const phone of config.phone_numbers) {
+          if (phone.sip_uri) {
+            const normalizedStoredSip = normalizeSipUri(phone.sip_uri);
+            if (normalizedStoredSip === normalizedInputSip) {
+              logger.info(`SIP URI ${identifier} matched to ${phone.sip_uri} -> Environment: ${env}`);
+              return env;
+            }
+          }
         }
       }
     }
+    logger.warn(`SIP URI ${identifier} not found in config, defaulting to production`);
+  } else {
+    // Handle as phone number
+    const normalizedNumber = normalizePhoneNumber(identifier);
+    logger.debug(`Checking environment for normalized number: ${normalizedNumber}`);
+
+    // Check each environment for matching phone number
+    for (const [env, config] of Object.entries(phoneConfig)) {
+      if (config.phone_numbers) {
+        for (const phone of config.phone_numbers) {
+          if (normalizePhoneNumber(phone.number) === normalizedNumber) {
+            logger.info(`Phone number ${normalizedNumber} mapped to environment: ${env}`);
+            return env;
+          }
+        }
+      }
+    }
+    logger.warn(`Phone number ${normalizedNumber} not found in config, defaulting to production`);
   }
 
-  logger.warn(`Phone number ${normalizedNumber} not found in config, defaulting to production`);
   return 'prod';
 };
 
-// Get HMAC secret for a specific phone number
-const getHmacSecretForPhoneNumber = (phoneNumber) => {
-  if (!phoneConfig || !phoneNumber) {
+// Get HMAC secret for a specific phone number or SIP URI
+const getHmacSecretForIdentifier = (identifier) => {
+  if (!phoneConfig || !identifier) {
     logger.debug('Using default HMAC secret from environment');
     return process.env.PINLESS_HMAC_SECRET;
   }
 
-  const normalizedNumber = normalizePhoneNumber(phoneNumber);
+  // Check if identifier is a SIP URI
+  const isSipUri = identifier.includes('@') || identifier.startsWith('sip:');
   
-  // Search through all environments for the phone number
-  for (const [env, config] of Object.entries(phoneConfig)) {
-    if (config.phone_numbers) {
-      for (const phone of config.phone_numbers) {
-        if (normalizePhoneNumber(phone.number) === normalizedNumber) {
-          if (phone.hmac_secret) {
-            logger.debug(`Using HMAC secret for phone number ${normalizedNumber}`);
-            return phone.hmac_secret;
+  if (isSipUri) {
+    logger.debug(`Looking for HMAC secret for SIP URI: ${identifier}`);
+    const normalizedInputSip = normalizeSipUri(identifier);
+    
+    // Search through all environments for the SIP URI
+    for (const [env, config] of Object.entries(phoneConfig)) {
+      if (config.phone_numbers) {
+        for (const phone of config.phone_numbers) {
+          if (phone.sip_uri) {
+            const normalizedStoredSip = normalizeSipUri(phone.sip_uri);
+            if (normalizedStoredSip === normalizedInputSip) {
+              if (phone.hmac_secret) {
+                logger.debug(`Using HMAC secret for SIP URI ${identifier} (matched to ${phone.sip_uri})`);
+                return phone.hmac_secret;
+              }
+              break;
+            }
           }
-          break;
         }
       }
     }
+    logger.debug('SIP URI-specific HMAC not found, using default from environment');
+  } else {
+    // Handle as phone number
+    const normalizedNumber = normalizePhoneNumber(identifier);
+    
+    // Search through all environments for the phone number
+    for (const [env, config] of Object.entries(phoneConfig)) {
+      if (config.phone_numbers) {
+        for (const phone of config.phone_numbers) {
+          if (normalizePhoneNumber(phone.number) === normalizedNumber) {
+            if (phone.hmac_secret) {
+              logger.debug(`Using HMAC secret for phone number ${normalizedNumber}`);
+              return phone.hmac_secret;
+            }
+            break;
+          }
+        }
+      }
+    }
+    logger.debug('Phone-specific HMAC not found, using default from environment');
   }
 
   // Fall back to environment variable
-  logger.debug('Phone-specific HMAC not found, using default from environment');
   return process.env.PINLESS_HMAC_SECRET;
 };
 
@@ -129,8 +247,9 @@ export default async function handler(req, res) {
       logger.info('Validating HMAC signature');
       
       // Extract the 'To' field from the request body to determine which phone's HMAC to use
-      const targetPhoneNumber = req.body.To || req.body.to;
-      const hmacSecret = getHmacSecretForPhoneNumber(targetPhoneNumber);
+      // This could be either a phone number or a SIP URI
+      const targetIdentifier = req.body.To || req.body.to;
+      const hmacSecret = getHmacSecretForIdentifier(targetIdentifier);
       
       if (!hmacSecret) {
         logger.error('No HMAC secret found for validation');
@@ -144,7 +263,7 @@ export default async function handler(req, res) {
         logger.error('Invalid HMAC signature', { 
           signature, 
           timestamp,
-          phoneNumber: targetPhoneNumber 
+          identifier: targetIdentifier 
         });
         return res.status(401).json({ 
           error: 'Invalid signature',
@@ -224,15 +343,16 @@ export default async function handler(req, res) {
 
     logger.debug(`Daily room properties: ${JSON.stringify(daily_room_properties)}`);
 
-    // Determine environment based on phone number
-    let targetPhoneNumber = null;
+    // Determine environment based on phone number or SIP URI
+    let targetIdentifier = null;
     let detectedEnvironment = 'prod';
 
-    // For dial-in, use the 'To' field (the number being called)
+    // For dial-in, use the 'To' field (could be phone number or SIP URI)
     if (dialin_settings && dialin_settings.To) {
-      targetPhoneNumber = dialin_settings.To;
-      detectedEnvironment = getEnvironmentForPhoneNumber(targetPhoneNumber);
-      logger.info(`Dial-in detected. Using 'To' number ${targetPhoneNumber} -> Environment: ${detectedEnvironment}`);
+      targetIdentifier = dialin_settings.To;
+      detectedEnvironment = getEnvironmentForDialIdentifier(targetIdentifier);
+      const identifierType = targetIdentifier.includes('@') || targetIdentifier.startsWith('sip:') ? 'SIP URI' : 'phone number';
+      logger.info(`Dial-in detected. Using 'To' ${identifierType}: ${targetIdentifier} -> Environment: ${detectedEnvironment}`);
     }
     // For dial-out, use the 'From' field in dialout_settings (the caller ID)
     else if (dialout_settings && dialout_settings.length > 0) {
@@ -243,10 +363,10 @@ export default async function handler(req, res) {
         // For now, we'll check if any dialout_settings has a phoneNumber that matches our config
         for (const setting of dialout_settings) {
           if (setting.phoneNumber) {
-            const env = getEnvironmentForPhoneNumber(setting.phoneNumber);
+            const env = getEnvironmentForDialIdentifier(setting.phoneNumber);
             if (env !== 'prod') {
               detectedEnvironment = env;
-              targetPhoneNumber = setting.phoneNumber;
+              targetIdentifier = setting.phoneNumber;
               break;
             }
           }

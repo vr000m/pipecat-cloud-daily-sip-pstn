@@ -5,9 +5,9 @@ Next.js API routes for handling Daily Pipecat requests.
 ## Features
 
 - API endpoint for handling Daily Pipecat requests
-- Dynamic environment routing based on phone numbers
+- Dynamic environment routing based on phone numbers or SIP URIs
 - Automatic phone configuration sync from Daily API
-- Per-phone-number HMAC signature validation for enhanced security
+- Per-phone-number/SIP-URI HMAC signature validation for enhanced security
 - Structured logging with Pino
 - Support for dialin and dialout settings
 - Voicemail detection and call transfer functionality
@@ -90,7 +90,9 @@ This command will:
 - Update `phone.yml` with the latest configuration
 - Show a summary of discovered phone numbers
 
-**Security Note**: Each phone number has its own HMAC secret that's automatically fetched from Daily. This provides better security than using a single shared secret.
+**Security Note**: Each phone number and SIP URI has its own HMAC secret that's automatically fetched from Daily. This provides better security than using a single shared secret.
+
+**SIP URI Support**: The webhook can handle both phone numbers and SIP URIs in the `To` field. The system automatically detects whether it's a phone number or SIP URI and looks up the appropriate configuration.
 
 ### Manual Phone Configuration
 
