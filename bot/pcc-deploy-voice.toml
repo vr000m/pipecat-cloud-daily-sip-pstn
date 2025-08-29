@@ -1,6 +1,6 @@
 agent_name = "my-pstn-agent"
-image = "drvr000m/my-pstn-agent:0.1.5"
-image_credentials = "pull-secret"
+image = "drvr000m/my-pstn-agent:0.1.6"
+image_credentials = "my-image-pull-secret"
 secret_set = "my-pstn-agent-secrets"
 enable_krisp = true
 
