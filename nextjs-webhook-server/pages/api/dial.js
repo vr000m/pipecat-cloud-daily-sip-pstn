@@ -345,10 +345,21 @@ export default async function handler(req, res) {
       daily_room_properties.sip = sip_config;
     }
 
+    // Enable recording
+    const daily_meeting_token_properties = {
+      is_owner: true,
+    };
+
+    if (process.env.RECORDING === "true" || process.env.RECORDING === "1") {
+      daily_room_properties.enable_recording = "cloud";
+      daily_meeting_token_properties.start_cloud_recording = true;
+    }
+
     // Prepare payload for {service}/start API call
     const payload = {
       createDailyRoom: true,
       dailyRoomProperties: daily_room_properties,
+      dailyMeetingTokenProperties: daily_meeting_token_properties,
       body: {
         dialin_settings,
         dialout_settings,
