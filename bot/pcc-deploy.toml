@@ -1,9 +1,9 @@
 agent_name = "my-pstn-agent"
-image = "drvr000m/my-pstn-agent:0.1.6"
+image = "drvr000m/my-pstn-agent:0.1.7"
 image_credentials = "my-image-pull-secret"
 secret_set = "my-pstn-agent-secrets"
 enable_krisp = true
 
 [scaling]
-	min_instances = 0
+	min_instances = 1 
 

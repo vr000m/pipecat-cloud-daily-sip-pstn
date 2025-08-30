@@ -62,9 +62,10 @@ else
   echo "bot.py already exists."
 fi
 
-# Extract version from toml file
-VERSION=$(grep -E '^image\s*=' pcc-deploy.toml | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
-IMAGE_NAME=$(grep -E '^image\s*=' pcc-deploy.toml | sed -E 's/^image\s*=\s*"([^:"]+).*/\1/')ß
+# Extract version and image name from toml file
+IMAGE_LINE=$(grep -E '^image\s*=' pcc-deploy.toml)
+VERSION=$(echo "$IMAGE_LINE" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+IMAGE_NAME=$(echo "$IMAGE_LINE" | cut -d'"' -f2 | cut -d':' -f1)
 BASE_NAME=$(basename "$IMAGE_NAME")
 AGENT_NAME=$(grep 'agent_name' pcc-deploy.toml | cut -d'"' -f2)
 
