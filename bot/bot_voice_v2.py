@@ -78,7 +78,12 @@ class DialInHandler:
         @self.transport.event_handler("on_dialin_connected")
         async def on_dialin_connected(transport, data):
             """Handler for when a dial-in call is connected."""
+            session_id = data.get("sessionId")
             logger.debug(f"Dial-in connected: {data} and set_bot_ready")
+            logger.info(f"Dial-in session ID: {session_id}")
+            # For the dial-in case, we want the bot to greet the user.
+            # We can prompt the bot to speak by putting the context into the pipeline.
+            await self.task.queue_frames([self.context_aggregator.user().get_context_frame()])
 
         @self.transport.event_handler("on_dialin_stopped")
         async def on_dialin_stopped(transport, data):
@@ -103,10 +108,6 @@ class DialInHandler:
             logger.info("First participant joined: {}", participant["id"])
             # Capture the participant's transcription
             await transport.capture_participant_transcription(participant["id"])
-
-            # For the dial-in case, we want the bot to greet the user.
-            # We can prompt the bot to speak by putting the context into the pipeline.
-            await self.task.queue_frames([self.context_aggregator.user().get_context_frame()])
 
 
 class DialOutHandler:
