@@ -335,13 +335,21 @@ export default async function handler(req, res) {
 
     // Configure SIP if dialin settings are provided
     if (dialin_settings !== null) {
+      // normalize and check against the special G722 numbers
+      const specialG722 = ["+19097468663", "+12798670006"].map(n => normalizePhoneNumber(n));
+      const toNormalized = normalizePhoneNumber(To);
+      const selectedCodec = specialG722.includes(toNormalized) ? "G722" : "PCMU";
+
       const sip_config = {
         display_name: From,
         sip_mode: 'dial-in',
-        // num_endpoints: 1, // 1 for dial-in, 2 for transfer
-        num_endpoints: (call_transfer !== undefined && call_transfer !== null) ? 2 : 1,
-        // codecs: {"audio": [To === "+16502315623" ? "PCMU" : "OPUS"]},
+        num_endpoints: 1, // 1 for dial-in, 2 for transfer
+        // num_endpoints: (call_transfer !== undefined && call_transfer !== null) ? 2 : 1,
+        // codec options are: ['OPUS', 'G722', 'PCMU', 'PCMA']
+        codecs: { "audio": [selectedCodec] },
       };
+      // +1 909-746-8663  is my local test number
+      // +1 279-867-0006 (G722) is my prod number
       daily_room_properties.sip = sip_config;
     }
 
