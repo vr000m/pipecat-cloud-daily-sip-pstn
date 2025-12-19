@@ -111,8 +111,11 @@ async def start_bot_production(agent_request: AgentRequest, session: aiohttp.Cli
 
     body_data = agent_request.model_dump(exclude_none=True)
 
+    # For staging: https://staging.qa.pipecat.cloud
+    pipecat_hostname = os.getenv("PIPECAT_HOSTNAME", "api.pipecat.daily.co")
+
     async with session.post(
-        f"https://api.pipecat.daily.co/v1/public/{agent_name}/start",
+        f"https://{pipecat_hostname}/v1/public/{agent_name}/start",
         headers={
             "Authorization": f"Bearer {pipecat_api_key}",
             "Content-Type": "application/json",

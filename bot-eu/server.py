@@ -90,6 +90,7 @@ async def handle_call(request: Request):
         call_sid=call_data.call_sid,
         sip_uri=sip_config.sip_endpoint,
     )
+    print (f"Agent request: {agent_request}")
 
     # Start bot locally or in production.
     try:
