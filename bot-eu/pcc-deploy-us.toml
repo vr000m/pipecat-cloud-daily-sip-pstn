@@ -1,5 +1,5 @@
-agent_name = "vr000m-pcc-twilio-sip"
-image = "pluot/vr000m-pcc-twilio-sip:0.1"
+agent_name = "vr000m-pcc-twilio-sip-us"
+image = "pluot/vr000m-pcc-twilio-sip-us:0.2"
 image_credentials = "pluot-image-pull-secret-us"
 secret_set = "twilio-us"
 agent_profile = "agent-1x"

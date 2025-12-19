@@ -1,8 +1,9 @@
-agent_name = "vr000m-pcc-twilio-sip"
-image = "pluot/vr000m-pcc-twilio-sip:0.1"
-image_credentials = "your_dockerhub_image_pull_secret"
+agent_name = "vr000m-pcc-twilio-sip-eu"
+image = "pluot/vr000m-pcc-twilio-sip-eu:0.1"
+image_credentials = "pluot-image-pull-secret-eu"
 secret_set = "twilio-eu"
 agent_profile = "agent-1x"
+region = "eu-central"
 
 [scaling]
 	min_agents = 1
