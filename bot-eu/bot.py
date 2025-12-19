@@ -140,6 +140,7 @@ async def bot(runner_args: RunnerArguments):
                 turn_analyzer=LocalSmartTurnAnalyzerV3(),
             ),
         )
+        # print (f"Starting bot for call SID: {request}")
 
         await run_bot(transport, request, runner_args.handle_sigint)
     except Exception as e:
