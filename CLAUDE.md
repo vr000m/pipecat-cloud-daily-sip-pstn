@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-### Bot Development
+### Bot Development (`/bot` - Daily-native PSTN)
 ```bash
 # Install Python dependencies for the bot
 cd bot && pip install -r requirements.txt
@@ -15,8 +15,26 @@ cd bot && ./deploy.sh
 # Check agent status
 pcc agent status [AGENT_NAME]
 
-# View agent deployments  
+# View agent deployments
 pcc agent deployments [AGENT_NAME]
+```
+
+### Bot-EU Development (`/bot-eu` - Twilio + Daily SIP)
+```bash
+# Install Python dependencies
+cd bot-eu && pip install -r requirements.txt
+# Or with uv:
+cd bot-eu && uv sync
+
+# Run locally (starts both server and bot)
+cd bot-eu && python server.py  # Webhook server on port 8080
+cd bot-eu && python bot.py     # Bot on port 7860
+
+# Deploy to Pipecat Cloud (EU region)
+cd bot-eu && pcc deploy pcc-deploy-eu.toml
+
+# Deploy to Pipecat Cloud (US region)
+cd bot-eu && pcc deploy pcc-deploy-us.toml
 ```
 
 ### Webhook Server (FastAPI)
@@ -66,17 +84,40 @@ npm run test-normalization
 
 ## Architecture
 
-This repository implements a PSTN/SIP telephony system using Pipecat Cloud with three main components:
+This repository implements a PSTN/SIP telephony system using Pipecat Cloud with the following components:
 
-### 1. Voice Bot (`/bot`)
-The core conversational AI that handles phone calls. Key files:
+### 1. Voice Bot (`/bot`) - Daily-native PSTN
+The core conversational AI that handles phone calls via Daily's native PSTN. Key files:
 - `bot_voice_v2.py`: Current production bot with dial-in/dial-out handlers
 - Uses Pipecat framework with Daily for WebRTC transport
 - Integrates Deepgram (STT), OpenAI (LLM), and Cartesia (TTS)
 - Deployed as Docker container to Pipecat Cloud via `pcc-deploy.toml`
 - Supports both inbound (dial-in) and outbound (dial-out) calls
 
-### 2. Webhook Servers
+### 2. Voice Bot EU (`/bot-eu`) - Twilio + Daily SIP
+Alternative implementation using Twilio as PSTN provider with Daily SIP. Key files:
+- `bot.py`: Voice bot with region-based Twilio credential selection
+- `server.py`: FastAPI webhook handler for Twilio `/call` endpoint
+- `server_utils.py`: Utilities for Daily room creation and bot starting
+- `pcc-deploy-eu.toml`: EU deployment (eu-central region)
+- `pcc-deploy-us.toml`: US deployment
+
+**Region-based routing**: The bot selects Twilio credentials based on dialed number:
+- `+1` numbers (US/Canada) → `TWILIO_AUTH_TOKEN_US` with `us1` region
+- All other numbers → `TWILIO_AUTH_TOKEN_EU` with `ie1` (Ireland) region
+
+**Call flow**:
+1. User calls Twilio phone number
+2. Twilio sends webhook to `server.py` `/call` endpoint
+3. Server creates Daily room with SIP capabilities via `pipecat.runner.daily.configure`
+4. Server starts bot (locally or via Pipecat Cloud based on `ENV`)
+5. Bot receives `on_dialin_ready` event
+6. Bot uses Twilio API to forward call to Daily SIP endpoint
+7. Caller connected to bot
+
+**Future consolidation**: `bot-eu/server.py` and `fastapi-webhook-server/server.py` are planned to be merged into a unified FastAPI server handling both Daily-native PSTN and Twilio-PSTN flows.
+
+### 3. Webhook Servers
 Two implementations that handle Daily's pinless dial-in webhooks:
 
 **FastAPI Server (`/fastapi-webhook-server`)**
@@ -93,7 +134,7 @@ Two implementations that handle Daily's pinless dial-in webhooks:
 - Validates callerId as UUID for dial-out requests
 - Handles `/api/dial` endpoint for both dial-in and dial-out
 
-### 3. Call Flow
+### 4. Call Flow
 
 **Dial-in (incoming calls):**
 1. User calls purchased phone number
@@ -119,11 +160,22 @@ Required across all components:
 - `DAILY_API_KEY_PROD`: Daily API key for production phone config fetching
 - `DAILY_API_KEY_STAGING`: Daily API key for staging phone config fetching
 
-Bot-specific:
+Bot-specific (`/bot` and `/bot-eu` share these):
 - `DAILY_API_KEY`: Daily API access
 - `OPENAI_API_KEY`: OpenAI LLM service
-- `DEEPGRAM_API_KEY`: Speech-to-text service  
+- `DEEPGRAM_API_KEY`: Speech-to-text service
 - `CARTESIA_API_KEY`: Text-to-speech service
+
+Bot-EU additional (`/bot-eu` only):
+- `TWILIO_ACCOUNT_SID`: Twilio account (shared across regions)
+- `TWILIO_AUTH_TOKEN`: Fallback auth token
+- `TWILIO_AUTH_TOKEN_US`: US region Twilio credentials
+- `TWILIO_AUTH_TOKEN_EU`: EU region Twilio credentials
+- `ENV`: Environment mode (`local` or `production`)
+- `LOCAL_SERVER_URL`: Local bot server URL (default: `http://localhost:7860`)
+- `PIPECAT_API_KEY`: Pipecat Cloud API key (for production)
+- `PIPECAT_AGENT_NAME`: Agent name for Pipecat Cloud
+- `PIPECAT_HOSTNAME`: Pipecat Cloud hostname (optional, for staging)
 
 ## Phone Configuration System
 
