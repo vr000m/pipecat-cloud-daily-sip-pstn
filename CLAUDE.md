@@ -4,6 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+### Pipecat CLI Installation
+```bash
+# Install pipecat CLI (required for deployment)
+uv tool install pipecat-ai-cli
+# Or with pipx:
+pipx install pipecat-ai-cli
+
+# Optional: Install with tail dashboard for real-time monitoring
+uv tool install "pipecat-ai-cli[tail]"
+
+# Authenticate with Pipecat Cloud
+pipecat cloud auth login
+```
+
 ### Bot Development (`/bot` - Daily-native PSTN)
 ```bash
 # Install Python dependencies for the bot
@@ -12,11 +26,21 @@ cd bot && pip install -r requirements.txt
 # Deploy bot to Pipecat Cloud
 cd bot && ./deploy.sh
 
-# Check agent status
-pcc agent status [AGENT_NAME]
+# Or deploy manually:
+pipecat cloud docker build-push
+pipecat cloud deploy
 
-# View agent deployments
-pcc agent deployments [AGENT_NAME]
+# List all deployed agents
+pipecat cloud agent list
+
+# View agent logs
+pipecat cloud agent logs [AGENT_NAME]
+
+# Real-time monitoring (local bot)
+pipecat tail
+
+# Real-time monitoring (remote)
+pipecat tail --url wss://your-bot.example.com
 ```
 
 ### Bot-EU Development (`/bot-eu` - Twilio + Daily SIP)
@@ -31,10 +55,21 @@ cd bot-eu && python server.py  # Webhook server on port 8080
 cd bot-eu && python bot.py     # Bot on port 7860
 
 # Deploy to Pipecat Cloud (EU region)
-cd bot-eu && pcc deploy pcc-deploy-eu.toml
+cd bot-eu && pipecat cloud deploy vr000m-pcc-twilio-sip-eu pluot/vr000m-pcc-twilio-sip-eu:0.2 \
+  --credentials pluot-image-pull-secret-eu \
+  --secrets twilio-eu \
+  --profile agent-1x \
+  --region eu-central
 
 # Deploy to Pipecat Cloud (US region)
-cd bot-eu && pcc deploy pcc-deploy-us.toml
+cd bot-eu && pipecat cloud deploy vr000m-pcc-twilio-sip-us pluot/vr000m-pcc-twilio-sip-us:0.2 \
+  --credentials pluot-image-pull-secret-us \
+  --secrets twilio-us \
+  --profile agent-1x
+
+# View agent logs
+pipecat cloud agent logs vr000m-pcc-twilio-sip-eu
+pipecat cloud agent logs vr000m-pcc-twilio-sip-us
 ```
 
 ### Webhook Server (FastAPI)
