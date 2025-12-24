@@ -62,22 +62,22 @@ else
   echo "bot.py already exists."
 fi
 
-# Extract version and image name from toml file
-IMAGE_LINE=$(grep -E '^image\s*=' pcc-deploy.toml)
-VERSION=$(echo "$IMAGE_LINE" | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
-IMAGE_NAME=$(echo "$IMAGE_LINE" | cut -d'"' -f2 | cut -d':' -f1)
-BASE_NAME=$(basename "$IMAGE_NAME")
+# Extract agent name from toml file
 AGENT_NAME=$(grep 'agent_name' pcc-deploy.toml | cut -d'"' -f2)
+echo "Deploying agent: $AGENT_NAME"
 
 # Check if login is needed
 if [ "$1" != "--skip-login" ]; then
-  pcc auth login
+  pipecat cloud auth login
   docker login
 fi
 
-docker build --platform=linux/arm64 --no-cache -t "$BASE_NAME:latest" .
-docker tag "$BASE_NAME:latest" "$IMAGE_NAME:$VERSION"
-docker push "$IMAGE_NAME:$VERSION"
-pcc deploy
-pcc agent deployments "$AGENT_NAME"
-pcc agent status "$AGENT_NAME"
+# Build and push Docker image, then deploy
+# Note: pipecat cloud docker build-push reads from pcc-deploy.toml to determine
+# registry settings, image names, and versions automatically
+pipecat cloud docker build-push
+pipecat cloud deploy
+
+# Show status for the deployed agent
+pipecat cloud agent status "$AGENT_NAME"
+pipecat cloud agent deployments "$AGENT_NAME"
