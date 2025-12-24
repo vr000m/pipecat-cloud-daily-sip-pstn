@@ -38,6 +38,16 @@ pipecat cloud agent logs vr000m-pcc-twilio-sip-eu
 pipecat cloud agent logs vr000m-pcc-twilio-sip-us
 ```
 
+### Docker & Image Pull Secrets Setup
+```bash
+# Login to Docker Hub (one-time setup)
+docker login -u pluot
+
+# Create image pull secrets (one-time setup per region)
+pipecat cloud secrets image-pull-secret pluot-image-pull-secret-eu https://index.docker.io/v1/ --region eu-central
+pipecat cloud secrets image-pull-secret pluot-image-pull-secret-us https://index.docker.io/v1/
+```
+
 ### Bot Development (`/bot` - Daily-native PSTN)
 ```bash
 # Install Python dependencies for the bot
@@ -70,22 +80,20 @@ cd bot-eu && pip install -r requirements.txt
 # Or with uv:
 cd bot-eu && uv sync
 
-# Run locally (starts both server and bot)
-cd bot-eu && python server.py  # Webhook server on port 8080
-cd bot-eu && python bot.py     # Bot on port 7860
+# Run locally
+cd bot-eu && uv run server.py  # Webhook server on port 8080
 
 # Deploy to Pipecat Cloud (EU region)
-cd bot-eu && pipecat cloud deploy vr000m-pcc-twilio-sip-eu pluot/vr000m-pcc-twilio-sip-eu:0.2 \
-  --credentials pluot-image-pull-secret-eu \
-  --secrets twilio-eu \
-  --profile agent-1x \
-  --region eu-central
+cd bot-eu
+cp pcc-deploy-eu.toml pcc-deploy.toml
+pipecat cloud docker build-push
+pipecat cloud deploy
 
 # Deploy to Pipecat Cloud (US region)
-cd bot-eu && pipecat cloud deploy vr000m-pcc-twilio-sip-us pluot/vr000m-pcc-twilio-sip-us:0.2 \
-  --credentials pluot-image-pull-secret-us \
-  --secrets twilio-us \
-  --profile agent-1x
+cd bot-eu
+cp pcc-deploy-us.toml pcc-deploy.toml
+pipecat cloud docker build-push
+pipecat cloud deploy
 
 # View agent logs
 pipecat cloud agent logs vr000m-pcc-twilio-sip-eu
