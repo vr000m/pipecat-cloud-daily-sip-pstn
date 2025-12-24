@@ -16,6 +16,26 @@ uv tool install "pipecat-ai-cli[tail]"
 
 # Authenticate with Pipecat Cloud
 pipecat cloud auth login
+
+# List and select organization
+pipecat cloud organizations list
+pipecat cloud organizations select
+```
+
+### Pipecat Cloud Organization & Agents
+**Organization**: Default Workspace1 (`disastrous-mockingbird-amethyst-180`)
+
+| Agent Name | Region | Description |
+|------------|--------|-------------|
+| `my-pstn-agent` | us-west | Main /bot Daily-native PSTN agent |
+| `vr000m-pcc-twilio-sip-eu` | eu-central | /bot-eu Twilio+Daily SIP (EU) |
+| `vr000m-pcc-twilio-sip-us` | us-west | /bot-eu Twilio+Daily SIP (US) |
+
+```bash
+# View agent logs
+pipecat cloud agent logs my-pstn-agent
+pipecat cloud agent logs vr000m-pcc-twilio-sip-eu
+pipecat cloud agent logs vr000m-pcc-twilio-sip-us
 ```
 
 ### Bot Development (`/bot` - Daily-native PSTN)
