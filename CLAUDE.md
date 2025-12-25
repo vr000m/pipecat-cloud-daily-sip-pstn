@@ -60,7 +60,12 @@ PIPECAT_API_HOST="https://staging.qa.pipecat.cloud" pipecat cloud deploy
 ### Bot Development (`/bot` - Daily-native PSTN)
 ```bash
 # Install Python dependencies for the bot
+cd bot && uv sync
+# Or with pip:
 cd bot && pip install -r requirements.txt
+
+# Run locally (for development with unified-webhook-server)
+cd bot && uv run python -m pipecat.runner.run  # Starts on port 7860
 
 # Deploy bot to Pipecat Cloud
 cd bot && ./deploy.sh
@@ -129,7 +134,27 @@ pipecat cloud agent logs vr000m-pcc-twilio-sip-us
      pipecat cloud secrets --help  # for secret_set management
      ```
 
-### Webhook Server (FastAPI)
+### Unified Webhook Server (`/unified-webhook-server`)
+Handles both Daily-native PSTN and Twilio+Daily SIP webhooks in a single FastAPI server.
+
+```bash
+# Install dependencies
+cd unified-webhook-server && pip install -r requirements.txt
+
+# Run locally (three terminals needed)
+cd unified-webhook-server && uvicorn server:app --reload --port 8080  # Terminal 1: Webhook server
+cd bot-eu && uv run bot.py -t daily                                    # Terminal 2: Bot
+ngrok http 8080                                                        # Terminal 3: Expose to internet
+
+# Endpoints:
+# /api/dial         - Daily pinless dial-in webhook (JSON response)
+# /api/twilio/call  - Twilio call webhook (TwiML response)
+# /health           - Health check
+```
+
+**Deployment**: The server is deployment-agnostic. Deploy to Cloudflare Workers, AWS Lambda, Google Cloud Run, etc.
+
+### Legacy: Webhook Server (FastAPI)
 ```bash
 # Install dependencies
 cd fastapi-webhook-server && pip install -r requirements.txt
@@ -207,18 +232,44 @@ Alternative implementation using Twilio as PSTN provider with Daily SIP. Key fil
 6. Bot uses Twilio API to forward call to Daily SIP endpoint
 7. Caller connected to bot
 
-**Future consolidation**: `bot-eu/server.py` and `fastapi-webhook-server/server.py` are planned to be merged into a unified FastAPI server handling both Daily-native PSTN and Twilio-PSTN flows.
+**Note**: The `bot-eu/server.py` can be used standalone for simple local development, or replaced by the unified webhook server (see below).
 
-### 3. Webhook Servers
-Two implementations that handle Daily's pinless dial-in webhooks:
+### 3. Unified Webhook Server (`/unified-webhook-server`)
+A single FastAPI server that handles both Daily-native PSTN and Twilio+Daily SIP webhooks.
 
-**FastAPI Server (`/fastapi-webhook-server`)**
+**Endpoints:**
+- `/api/dial` - Daily pinless dial-in webhook (JSON response)
+- `/api/twilio/call` - Twilio call webhook (TwiML response)
+- `/health` - Health check
+
+**Key features:**
+- Async HTTP with aiohttp for concurrent webhook handling
+- HMAC validation for Daily webhooks
+- Uses `pipecat.runner.daily.configure()` for Twilio flow room creation
+- Deployment-agnostic (Cloudflare Workers, Lambda, Cloud Run, etc.)
+
+**Project structure:**
+```
+unified-webhook-server/
+├── server.py              # Main FastAPI app
+├── handlers/
+│   ├── daily.py           # /api/dial handler
+│   └── twilio.py          # /api/twilio/call handler
+├── utils/
+│   └── hmac_validation.py # HMAC signature verification
+├── models.py              # Pydantic request models
+└── requirements.txt       # Dependencies
+```
+
+### 4. Legacy Webhook Servers
+
+**FastAPI Server (`/fastapi-webhook-server`)** - Legacy, use unified-webhook-server instead
 - Receives webhook from Daily when call arrives
 - Validates HMAC signature for security
 - Creates Daily room and starts bot via Pipecat Cloud API
 - Returns room properties for call routing
 
-**Next.js Server (`/nextjs-webhook-server`)**  
+**Next.js Server (`/nextjs-webhook-server`)**
 - Serverless alternative for Vercel deployment
 - Dynamic environment routing based on phone numbers/SIP URIs
 - Per-phone HMAC validation with individual secrets
@@ -226,7 +277,7 @@ Two implementations that handle Daily's pinless dial-in webhooks:
 - Validates callerId as UUID for dial-out requests
 - Handles `/api/dial` endpoint for both dial-in and dial-out
 
-### 4. Call Flow
+### 5. Call Flow
 
 **Dial-in (incoming calls):**
 1. User calls purchased phone number

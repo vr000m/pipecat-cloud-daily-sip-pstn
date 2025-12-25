@@ -31,14 +31,16 @@ cp .env.example .env
 uvicorn server:app --reload --port 8080
 ```
 
-## Local Development with bot-eu
+## Local Development
 
-For testing with Twilio, run the bot locally alongside the webhook server:
+### Testing Twilio Flow (`/api/twilio/call`)
+
+Run the bot-eu locally alongside the webhook server:
 
 **Terminal 1** - Webhook server:
 ```bash
 cd unified-webhook-server
-uvicorn server:app --reload --port 8080
+ENV=local uvicorn server:app --reload --port 8080
 ```
 
 **Terminal 2** - Bot:
@@ -52,7 +54,36 @@ uv run bot.py -t daily
 ngrok http 8080
 ```
 
-Then configure Twilio to send webhooks to `https://<ngrok-url>/api/twilio/call`.
+Configure Twilio to send webhooks to `https://<ngrok-url>/api/twilio/call`.
+
+### Testing Daily PSTN Flow (`/api/dial`)
+
+Run the Daily PSTN bot locally:
+
+**Terminal 1** - Webhook server:
+```bash
+cd unified-webhook-server
+ENV=local DAILY_API_KEY=your_key uvicorn server:app --reload --port 8080
+```
+
+**Terminal 2** - Bot:
+```bash
+cd bot
+uv sync                        # Install dependencies (first time)
+uv run python -m pipecat.runner.run  # Starts bot server on port 7860
+```
+
+**Terminal 3** - Expose via ngrok:
+```bash
+ngrok http 8080
+```
+
+Configure your Daily phone number webhook to point to `https://<ngrok-url>/api/dial`.
+
+**Note**: For local Daily PSTN testing, you need:
+- `ENV=local` to enable local mode
+- `DAILY_API_KEY` to create rooms
+- Bot running on port 7860 with `/start` endpoint (provided by pipecat runner)
 
 ## Call Flows
 
