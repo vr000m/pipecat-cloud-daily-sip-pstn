@@ -157,13 +157,15 @@ ngrok http 8080                                                        # Termina
 ### Legacy: Webhook Server (FastAPI)
 ```bash
 # Install dependencies
+cd fastapi-webhook-server && uv sync
+# Or with pip:
 cd fastapi-webhook-server && pip install -r requirements.txt
 
 # Run locally
-python server.py
+uv run python server.py
 
 # Expose via ngrok for testing
-ngrok http 3000
+ngrok http 7860
 ```
 
 ### Webhook Server (Next.js/Vercel)

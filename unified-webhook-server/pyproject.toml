@@ -1,0 +1,29 @@
+[project]
+name = "unified-webhook-server"
+version = "0.1.0"
+description = "Unified webhook server for Daily PSTN and Twilio+Daily SIP"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "pydantic>=2.0.0",
+    "loguru>=0.7.0",
+    "python-dotenv>=1.0.0",
+    "aiohttp>=3.9.0",
+    "twilio>=9.0.0",
+    "pipecat-ai[daily]>=0.0.91",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit~=4.2.0",
+    "ruff~=0.12.1",
+]
+
+[tool.ruff]
+exclude = [".git"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["I"]
+ignore = []
