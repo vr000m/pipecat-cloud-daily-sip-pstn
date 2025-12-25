@@ -1,0 +1,24 @@
+# Unified Webhook Server Dependencies
+# Handles both Daily-native PSTN and Twilio+Daily SIP flows
+
+# Web framework
+fastapi>=0.115.0
+uvicorn>=0.32.0
+
+# Data validation
+pydantic>=2.0.0
+
+# Logging
+loguru>=0.7.0
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Async HTTP client
+aiohttp>=3.9.0
+
+# Twilio (for TwiML responses)
+twilio>=9.0.0
+
+# Pipecat (for Daily room configuration)
+pipecat-ai[daily]>=0.0.91
