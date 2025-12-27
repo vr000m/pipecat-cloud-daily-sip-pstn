@@ -89,8 +89,9 @@ cd bot-eu && pip install -r requirements.txt
 # Or with uv:
 cd bot-eu && uv sync
 
-# Run locally
-cd bot-eu && uv run server.py  # Webhook server on port 8080
+# Run locally (two terminals needed)
+cd bot-eu && uv run server.py       # Terminal 1: Webhook server on port 8080
+cd bot-eu && uv run bot.py -t daily # Terminal 2: Bot with Daily transport
 
 # Deploy to Pipecat Cloud (EU region)
 cd bot-eu
@@ -108,6 +109,8 @@ pipecat cloud deploy
 pipecat cloud agent logs vr000m-pcc-twilio-sip-eu
 pipecat cloud agent logs vr000m-pcc-twilio-sip-us
 ```
+
+**Note**: When merging `bot-eu/server.py` into `fastapi-webhook-server`, consider keeping a local `server.py` in bot-eu for simplicity of local development.
 
 ### Webhook Server (FastAPI)
 ```bash
