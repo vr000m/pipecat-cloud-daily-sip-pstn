@@ -48,6 +48,15 @@ pipecat cloud secrets image-pull-secret pluot-image-pull-secret-eu https://index
 pipecat cloud secrets image-pull-secret pluot-image-pull-secret-us https://index.docker.io/v1/
 ```
 
+### Staging Environment
+```bash
+# To use staging infrastructure, pass PIPECAT_API_HOST inline with each command
+PIPECAT_API_HOST="https://staging.qa.pipecat.cloud" pipecat cloud auth login
+PIPECAT_API_HOST="https://staging.qa.pipecat.cloud" pipecat cloud secrets image-pull-secret pluot-image-pull-secret-eu https://index.docker.io/v1/ --region eu-central
+PIPECAT_API_HOST="https://staging.qa.pipecat.cloud" pipecat cloud docker build-push
+PIPECAT_API_HOST="https://staging.qa.pipecat.cloud" pipecat cloud deploy
+```
+
 ### Bot Development (`/bot` - Daily-native PSTN)
 ```bash
 # Install Python dependencies for the bot
