@@ -112,6 +112,23 @@ pipecat cloud agent logs vr000m-pcc-twilio-sip-us
 
 **Note**: When merging `bot-eu/server.py` into `fastapi-webhook-server`, consider keeping a local `server.py` in bot-eu for simplicity of local development.
 
+**Future improvements**:
+
+1. **Dynamic region deployment**: Refactor deploy.sh to use a single base `pcc-deploy-base.toml` with dynamic region selection. Available regions: `ap-south`, `eu-central`, `us-east`, `us-west` (default). The script would:
+   - Append region suffix (e.g., `-eu`, `-us`) to: `agent_name`, `image`, `image_credentials`, `secret_set`
+   - Add `region` field only if not us-west (the default)
+   - Copy modified config to `pcc-deploy.toml` for deployment
+
+2. **Setup utility**: Create a `create-pipecat-toml` utility that:
+   - Prompts for agent details (name, image registry, regions to deploy)
+   - Creates required `secret_set` and `image_credentials` in Pipecat Cloud per region
+   - Generates `pcc-deploy-base.toml` with the provided configuration
+   - Relevant commands for setup:
+     ```bash
+     pipecat cloud secrets image-pull-secret <name> <registry-url> [--region <region>]
+     pipecat cloud secrets --help  # for secret_set management
+     ```
+
 ### Webhook Server (FastAPI)
 ```bash
 # Install dependencies
