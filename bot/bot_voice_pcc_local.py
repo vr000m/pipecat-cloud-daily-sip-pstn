@@ -23,7 +23,7 @@ from pipecat.pipeline.runner import PipelineRunner
 from pipecat.pipeline.task import PipelineParams, PipelineTask
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
-from pipecat.runner.types import DailyDialinRequest, RunnerArguments
+from pipecat.runner.types import DailyDialinRequest, DailyRunnerArguments
 from pipecat.services.cartesia.tts import CartesiaTTSService
 from pipecat.services.deepgram.stt import DeepgramSTTService
 from pipecat.services.openai.llm import OpenAILLMService
@@ -110,7 +110,7 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool) -> None:
     await runner.run(task)
 
 
-async def bot(runner_args: RunnerArguments):
+async def bot(runner_args):
     """Main bot entry point compatible with Pipecat Cloud.
 
     Parses the runner arguments, configures the Daily transport with dial-in
@@ -125,6 +125,24 @@ async def bot(runner_args: RunnerArguments):
     """
 
     try:
+        # Get room_url and token - handle both DailyRunnerArguments and RunnerArguments
+        # DailyRunnerArguments has room_url/token as attributes
+        # RunnerArguments only has body, so we need to get them from there
+        if hasattr(runner_args, 'room_url') and runner_args.room_url:
+            room_url = runner_args.room_url
+            token = runner_args.token
+        else:
+            # Fallback: room_url/token might be in the raw request (local dev mode)
+            # The pipecat runner stores the original request data
+            logger.warning("runner_args doesn't have room_url, checking body")
+            room_url = runner_args.body.get('room_url') if isinstance(runner_args.body, dict) else None
+            token = runner_args.body.get('token') if isinstance(runner_args.body, dict) else None
+
+            if not room_url:
+                raise ValueError("No room_url found in runner_args or body")
+
+        logger.info(f"Using room_url: {room_url}")
+
         # Parse the dial-in request from the runner
         request = DailyDialinRequest.model_validate(runner_args.body)
 
@@ -135,8 +153,8 @@ async def bot(runner_args: RunnerArguments):
         )
 
         transport = DailyTransport(
-            runner_args.room_url,
-            runner_args.token,
+            room_url,
+            token,
             "Daily PSTN Dial-in Bot",
             params=DailyParams(
                 api_key=request.daily_api_key,

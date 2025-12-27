@@ -183,7 +183,84 @@ async def dial(request: RoomRequest, raw_request: Request):
 
     agent_name = os.getenv("AGENT_NAME", "my-first-agent")
 
-    if os.getenv("DAILY_ENV") == "staging":
+    # Check if we're in local development mode
+    if os.getenv("DAILY_ENV") == "local":
+        # Local mode: Create room via Daily API and call local bot
+        daily_api_key = os.getenv("DAILY_API_KEY")
+        if not daily_api_key:
+            elapsed_time = time.time() - start_time
+            logger.error("DAILY_API_KEY not set for local mode")
+            raise HTTPException(status_code=500, detail="DAILY_API_KEY required for local mode")
+
+        daily_api_url = os.getenv("DAILY_API_URL", "https://api.daily.co")
+        local_server_url = os.getenv("LOCAL_SERVER_URL", "http://localhost:7860")
+
+        logger.info(f"Local mode: Creating Daily room and calling bot at {local_server_url}")
+
+        try:
+            # Create Daily room
+            room_response = requests.post(
+                f"{daily_api_url}/v1/rooms",
+                headers={
+                    "Authorization": f"Bearer {daily_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"properties": daily_room_properties},
+            )
+            room_response.raise_for_status()
+            room_data = room_response.json()
+            room_url = room_data.get("url")
+            room_name = room_data.get("name")
+
+            # Create meeting token
+            token_response = requests.post(
+                f"{daily_api_url}/v1/meeting-tokens",
+                headers={
+                    "Authorization": f"Bearer {daily_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"properties": {"room_name": room_name, "is_owner": True}},
+            )
+            token_response.raise_for_status()
+            token = token_response.json().get("token")
+
+            # Add Daily API credentials to body (bot needs these for pinlessCallUpdate)
+            payload["body"]["daily_api_key"] = daily_api_key
+            payload["body"]["daily_api_url"] = daily_api_url
+
+            # Call local bot /start endpoint
+            # Include room_url/token in body as well for bots that use RunnerArguments
+            local_body = payload["body"].copy()
+            local_body["room_url"] = room_url
+            local_body["token"] = token
+
+            bot_response = requests.post(
+                f"{local_server_url}/start",
+                headers={"Content-Type": "application/json"},
+                json={
+                    "room_url": room_url,
+                    "token": token,
+                    "body": local_body,
+                },
+            )
+            bot_response.raise_for_status()
+
+            elapsed_time = time.time() - start_time
+            logger.info(f"Local request completed successfully - Duration: {elapsed_time:.3f}s")
+
+            return {
+                "status": "success",
+                "mode": "local",
+                "room_url": room_url,
+                "room_properties": daily_room_properties,
+            }
+
+        except requests.exceptions.RequestException as e:
+            elapsed_time = time.time() - start_time
+            logger.error(f"Local mode error: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    elif os.getenv("DAILY_ENV") == "staging":
         pcc_api_key = os.getenv("PIPECAT_CLOUD_API_KEY_STAGING")
         url = f"https://staging.qa.pipecat.cloud/v1/public/{agent_name}/start"
     else:
@@ -195,11 +272,11 @@ async def dial(request: RoomRequest, raw_request: Request):
         logger.error(
             f"Request failed with 500 (PIPECAT_CLOUD_API_KEY not set) - Duration: {elapsed_time:.3f}s"
         )
-        raise HTTPException(status_code=500, detail="DAILY_API_KEY environment variable is not set")
+        raise HTTPException(status_code=500, detail="PIPECAT_CLOUD_API_KEY environment variable is not set")
 
     headers = {"Authorization": f"Bearer {pcc_api_key}", "Content-Type": "application/json"}
 
-    logger.debug(f"Making API call to Daily: {url} {headers} {payload}")
+    logger.debug(f"Making API call to Pipecat Cloud: {url}")
 
     try:
         response = requests.post(url, json=payload, headers=headers)
@@ -210,6 +287,7 @@ async def dial(request: RoomRequest, raw_request: Request):
         logger.info(f"Request completed successfully - Duration: {elapsed_time:.3f}s")
         return {
             "status": "success",
+            "mode": "production",
             "data": response_data,
             "room_properties": daily_room_properties,
         }
@@ -220,7 +298,7 @@ async def dial(request: RoomRequest, raw_request: Request):
         elapsed_time = time.time() - start_time
         logger.error(f"HTTP error: {error_detail}")
         logger.info(
-            f"Request failed with {status_code} (HTTP error from Daily API) - Duration: {elapsed_time:.3f}s"
+            f"Request failed with {status_code} (HTTP error from Pipecat Cloud) - Duration: {elapsed_time:.3f}s"
         )
         raise HTTPException(status_code=status_code, detail=error_detail)
     except requests.exceptions.RequestException as e:
