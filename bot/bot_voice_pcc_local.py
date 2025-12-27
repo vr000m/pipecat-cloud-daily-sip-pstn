@@ -90,6 +90,12 @@ async def run_bot(transport: BaseTransport, handle_sigint: bool) -> None:
             audio_out_sample_rate=8000,
         ),
     )
+    @transport.event_handler("on_dialin_ready")
+    async def on_dialin_ready(transport, data):
+        """Handler for when the dial-in is ready (SIP addresses registered with the SIP network)."""
+        # For Twilio, Telnyx, etc. You need to update the state of the call
+        # and forward it to the sip_uri.
+        logger.debug(f"Dial-in ready: {data}")
 
     @transport.event_handler("on_first_participant_joined")
     async def on_first_participant_joined(transport, participant):

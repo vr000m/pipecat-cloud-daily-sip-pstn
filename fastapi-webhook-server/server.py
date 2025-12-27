@@ -160,7 +160,7 @@ async def dial(request: RoomRequest, raw_request: Request):
             "display_name": request.From,
             "sip_mode": "dial-in",
             "num_endpoints": 2 if request.call_transfer is not None else 1,
-            "codecs": {"audio": ["PCMU"]},
+            # "codecs": {"audio": ["PCMU"]},
             "video": False,
         }
         daily_room_properties["sip"] = sip_config
@@ -192,7 +192,7 @@ async def dial(request: RoomRequest, raw_request: Request):
             logger.error("DAILY_API_KEY not set for local mode")
             raise HTTPException(status_code=500, detail="DAILY_API_KEY required for local mode")
 
-        daily_api_url = os.getenv("DAILY_API_URL", "https://api.daily.co")
+        daily_api_url = os.getenv("DAILY_API_URL", "https://api.daily.co/v1")
         local_server_url = os.getenv("LOCAL_SERVER_URL", "http://localhost:7860")
 
         logger.info(f"Local mode: Creating Daily room and calling bot at {local_server_url}")
@@ -200,7 +200,7 @@ async def dial(request: RoomRequest, raw_request: Request):
         try:
             # Create Daily room
             room_response = requests.post(
-                f"{daily_api_url}/v1/rooms",
+                f"{daily_api_url}/rooms",
                 headers={
                     "Authorization": f"Bearer {daily_api_key}",
                     "Content-Type": "application/json",
@@ -214,7 +214,7 @@ async def dial(request: RoomRequest, raw_request: Request):
 
             # Create meeting token
             token_response = requests.post(
-                f"{daily_api_url}/v1/meeting-tokens",
+                f"{daily_api_url}/meeting-tokens",
                 headers={
                     "Authorization": f"Bearer {daily_api_key}",
                     "Content-Type": "application/json",
