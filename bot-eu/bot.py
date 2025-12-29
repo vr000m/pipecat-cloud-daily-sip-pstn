@@ -97,18 +97,22 @@ async def run_bot(transport: BaseTransport, request: AgentRequest, handle_sigint
 
             # Select Twilio credentials based on the dialed phone number
             # +1 numbers (US/Canada) use US credentials, others use EU credentials
+            # TODO: send to_phone from server in AgentRequest
             account_sid = os.getenv("TWILIO_ACCOUNT_SID")
 
-            if request.to_phone.startswith("+1"):
-                auth_token = os.getenv("TWILIO_AUTH_TOKEN_US")
-                twilio_region = "us1"
-                logger.info(f"Using US Twilio credentials for {request.to_phone}")
-            else:
-                auth_token = os.getenv("TWILIO_AUTH_TOKEN_EU")
-                twilio_region = "ie1"
-                logger.info(f"Using EU Twilio credentials for {request.to_phone}")
+            # if request.to_phone.startswith("+1"):
+            #     auth_token = os.getenv("TWILIO_AUTH_TOKEN_US")
+            #     twilio_region = "us1"
+            #     logger.info(f"Using US Twilio credentials for {request.to_phone}")
+            # else:
+            #     auth_token = os.getenv("TWILIO_AUTH_TOKEN_EU")
+            #     twilio_region = "ie1"
+            #     logger.info(f"Using EU Twilio credentials for {request.to_phone}")
+            auth_token = os.getenv("TWILIO_AUTH_TOKEN_EU")
+            twilio_region = "ie1"
+            logger.info(f"Using EU Twilio credentials for {request}")
 
-            twilio_client = Client(
+            twilio_client = Client( 
                 account_sid,
                 auth_token,
                 region=twilio_region,
