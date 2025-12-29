@@ -31,7 +31,7 @@ async def create_daily_room(
     http_session,
     room_properties: Dict[str, Any],
     daily_api_key: str,
-    daily_api_url: str = "https://api.daily.co",
+    daily_api_url: str = "https://api.daily.co/v1",
 ) -> Dict[str, Any]:
     """Create a Daily room for local development.
 
@@ -39,7 +39,7 @@ async def create_daily_room(
         http_session: aiohttp ClientSession
         room_properties: Room configuration (exp, sip, enable_dialout, etc.)
         daily_api_key: Daily API key
-        daily_api_url: Daily API URL (default: production)
+        daily_api_url: Daily API URL (default: production, includes /v1)
 
     Returns:
         Dict with room_url, token, and room details
@@ -49,7 +49,7 @@ async def create_daily_room(
     """
     # Create the room
     async with http_session.post(
-        f"{daily_api_url}/v1/rooms",
+        f"{daily_api_url}/rooms",
         headers={
             "Authorization": f"Bearer {daily_api_key}",
             "Content-Type": "application/json",
@@ -69,7 +69,7 @@ async def create_daily_room(
 
     # Create a meeting token
     async with http_session.post(
-        f"{daily_api_url}/v1/meeting-tokens",
+        f"{daily_api_url}/meeting-tokens",
         headers={
             "Authorization": f"Bearer {daily_api_key}",
             "Content-Type": "application/json",
@@ -117,13 +117,18 @@ async def start_bot_local(
     """
     logger.debug(f"Starting bot via local /start endpoint: {local_server_url}")
 
+    # Include room_url/token in body as well for bots that use RunnerArguments
+    local_body = body.copy()
+    local_body["room_url"] = room_url
+    local_body["token"] = token
+
     async with http_session.post(
         f"{local_server_url}/start",
         headers={"Content-Type": "application/json"},
         json={
             "room_url": room_url,
             "token": token,
-            "body": body,
+            "body": local_body,
         },
     ) as response:
         if response.status != 200:
@@ -200,7 +205,7 @@ async def dial(request: DailyDialRequest, raw_request: Request):
             "display_name": request.From,
             "sip_mode": "dial-in",
             "num_endpoints": 2 if request.call_transfer is not None else 1,
-            "codecs": {"audio": ["PCMU"]},
+            # "codecs": {"audio": ["PCMU"]},
             "video": False,
         }
         daily_room_properties["sip"] = sip_config
