@@ -228,11 +228,14 @@ Alternative implementation using Twilio as PSTN provider with Daily SIP. Key fil
 **Call flow**:
 1. User calls Twilio phone number
 2. Twilio sends webhook to `server.py` `/call` endpoint
-3. Server creates Daily room with SIP capabilities via `pipecat.runner.daily.configure`
+3. Server creates Daily room with explicit `DailyRoomSipParams` (`provider="daily"`, `geo="uwm"`) via `pipecat.runner.daily.configure` with `room_properties`
 4. Server starts bot (locally or via Pipecat Cloud based on `ENV`)
 5. Bot receives `on_dialin_ready` event
-6. Bot uses Twilio API to forward call to Daily SIP endpoint
-7. Caller connected to bot
+6. Bot selects Twilio credentials based on `to_phone` (+1 → US, others → EU)
+7. Bot uses Twilio API to forward call to Daily SIP endpoint
+8. Caller connected to bot
+
+**Note**: Requires pipecat-ai >= 0.0.103 for `provider` field support on `DailyRoomSipParams`.
 
 **Note**: The `bot-eu/server.py` can be used standalone for simple local development, or replaced by the unified webhook server (see below).
 
@@ -312,10 +315,10 @@ Bot-specific (`/bot` and `/bot-eu` share these):
 - `CARTESIA_API_KEY`: Text-to-speech service
 
 Bot-EU additional (`/bot-eu` only):
-- `TWILIO_ACCOUNT_SID`: Twilio account (shared across regions)
-- `TWILIO_AUTH_TOKEN`: Fallback auth token
-- `TWILIO_AUTH_TOKEN_US`: US region Twilio credentials
-- `TWILIO_AUTH_TOKEN_EU`: EU region Twilio credentials
+- `TWILIO_ACCOUNT_SID_US`: Twilio account SID for US region
+- `TWILIO_ACCOUNT_SID_EU`: Twilio account SID for EU region
+- `TWILIO_AUTH_TOKEN_US`: US region Twilio auth token
+- `TWILIO_AUTH_TOKEN_EU`: EU region Twilio auth token
 - `ENV`: Environment mode (`local` or `production`)
 - `LOCAL_SERVER_URL`: Local bot server URL (default: `http://localhost:7860`)
 - `PIPECAT_API_KEY`: Pipecat Cloud API key (for production)
