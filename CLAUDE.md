@@ -60,7 +60,12 @@ PIPECAT_API_HOST="https://staging.qa.pipecat.cloud" pipecat cloud deploy
 ### Bot Development (`/bot` - Daily-native PSTN)
 ```bash
 # Install Python dependencies for the bot
+cd bot && uv sync
+# Or with pip:
 cd bot && pip install -r requirements.txt
+
+# Run locally (for development with unified-webhook-server)
+cd bot && uv run python -m pipecat.runner.run  # Starts on port 7860
 
 # Deploy bot to Pipecat Cloud
 cd bot && ./deploy.sh
@@ -129,16 +134,38 @@ pipecat cloud agent logs vr000m-pcc-twilio-sip-us
      pipecat cloud secrets --help  # for secret_set management
      ```
 
-### Webhook Server (FastAPI)
+### Unified Webhook Server (`/unified-webhook-server`)
+Handles both Daily-native PSTN and Twilio+Daily SIP webhooks in a single FastAPI server.
+
 ```bash
 # Install dependencies
+cd unified-webhook-server && pip install -r requirements.txt
+
+# Run locally (three terminals needed)
+cd unified-webhook-server && uvicorn server:app --reload --port 8080  # Terminal 1: Webhook server
+cd bot-eu && uv run bot.py -t daily                                    # Terminal 2: Bot
+ngrok http 8080                                                        # Terminal 3: Expose to internet
+
+# Endpoints:
+# /api/dial         - Daily pinless dial-in webhook (JSON response)
+# /api/twilio/call  - Twilio call webhook (TwiML response)
+# /health           - Health check
+```
+
+**Deployment**: The server is deployment-agnostic. Deploy to Cloudflare Workers, AWS Lambda, Google Cloud Run, etc.
+
+### Legacy: Webhook Server (FastAPI)
+```bash
+# Install dependencies
+cd fastapi-webhook-server && uv sync
+# Or with pip:
 cd fastapi-webhook-server && pip install -r requirements.txt
 
 # Run locally
-python server.py
+uv run python server.py
 
 # Expose via ngrok for testing
-ngrok http 3000
+ngrok http 7860
 ```
 
 ### Webhook Server (Next.js/Vercel)
@@ -201,24 +228,53 @@ Alternative implementation using Twilio as PSTN provider with Daily SIP. Key fil
 **Call flow**:
 1. User calls Twilio phone number
 2. Twilio sends webhook to `server.py` `/call` endpoint
-3. Server creates Daily room with SIP capabilities via `pipecat.runner.daily.configure`
+3. Server creates Daily room with explicit `DailyRoomSipParams` (`provider="daily"`, `geo="uwm"`) via `pipecat.runner.daily.configure` with `room_properties`
 4. Server starts bot (locally or via Pipecat Cloud based on `ENV`)
 5. Bot receives `on_dialin_ready` event
-6. Bot uses Twilio API to forward call to Daily SIP endpoint
-7. Caller connected to bot
+6. Bot selects Twilio credentials based on `to_phone` (+1 → US, others → EU)
+7. Bot uses Twilio API to forward call to Daily SIP endpoint
+8. Caller connected to bot
 
-**Future consolidation**: `bot-eu/server.py` and `fastapi-webhook-server/server.py` are planned to be merged into a unified FastAPI server handling both Daily-native PSTN and Twilio-PSTN flows.
+**Note**: Requires pipecat-ai >= 0.0.103 for `provider` field support on `DailyRoomSipParams`.
 
-### 3. Webhook Servers
-Two implementations that handle Daily's pinless dial-in webhooks:
+**Note**: The `bot-eu/server.py` can be used standalone for simple local development, or replaced by the unified webhook server (see below).
 
-**FastAPI Server (`/fastapi-webhook-server`)**
+### 3. Unified Webhook Server (`/unified-webhook-server`)
+A single FastAPI server that handles both Daily-native PSTN and Twilio+Daily SIP webhooks.
+
+**Endpoints:**
+- `/api/dial` - Daily pinless dial-in webhook (JSON response)
+- `/api/twilio/call` - Twilio call webhook (TwiML response)
+- `/health` - Health check
+
+**Key features:**
+- Async HTTP with aiohttp for concurrent webhook handling
+- HMAC validation for Daily webhooks
+- Uses `pipecat.runner.daily.configure()` for Twilio flow room creation
+- Deployment-agnostic (Cloudflare Workers, Lambda, Cloud Run, etc.)
+
+**Project structure:**
+```
+unified-webhook-server/
+├── server.py              # Main FastAPI app
+├── handlers/
+│   ├── daily.py           # /api/dial handler
+│   └── twilio.py          # /api/twilio/call handler
+├── utils/
+│   └── hmac_validation.py # HMAC signature verification
+├── models.py              # Pydantic request models
+└── requirements.txt       # Dependencies
+```
+
+### 4. Legacy Webhook Servers
+
+**FastAPI Server (`/fastapi-webhook-server`)** - Legacy, use unified-webhook-server instead
 - Receives webhook from Daily when call arrives
 - Validates HMAC signature for security
 - Creates Daily room and starts bot via Pipecat Cloud API
 - Returns room properties for call routing
 
-**Next.js Server (`/nextjs-webhook-server`)**  
+**Next.js Server (`/nextjs-webhook-server`)**
 - Serverless alternative for Vercel deployment
 - Dynamic environment routing based on phone numbers/SIP URIs
 - Per-phone HMAC validation with individual secrets
@@ -226,7 +282,7 @@ Two implementations that handle Daily's pinless dial-in webhooks:
 - Validates callerId as UUID for dial-out requests
 - Handles `/api/dial` endpoint for both dial-in and dial-out
 
-### 4. Call Flow
+### 5. Call Flow
 
 **Dial-in (incoming calls):**
 1. User calls purchased phone number
@@ -259,10 +315,10 @@ Bot-specific (`/bot` and `/bot-eu` share these):
 - `CARTESIA_API_KEY`: Text-to-speech service
 
 Bot-EU additional (`/bot-eu` only):
-- `TWILIO_ACCOUNT_SID`: Twilio account (shared across regions)
-- `TWILIO_AUTH_TOKEN`: Fallback auth token
-- `TWILIO_AUTH_TOKEN_US`: US region Twilio credentials
-- `TWILIO_AUTH_TOKEN_EU`: EU region Twilio credentials
+- `TWILIO_ACCOUNT_SID_US`: Twilio account SID for US region
+- `TWILIO_ACCOUNT_SID_EU`: Twilio account SID for EU region
+- `TWILIO_AUTH_TOKEN_US`: US region Twilio auth token
+- `TWILIO_AUTH_TOKEN_EU`: EU region Twilio auth token
 - `ENV`: Environment mode (`local` or `production`)
 - `LOCAL_SERVER_URL`: Local bot server URL (default: `http://localhost:7860`)
 - `PIPECAT_API_KEY`: Pipecat Cloud API key (for production)

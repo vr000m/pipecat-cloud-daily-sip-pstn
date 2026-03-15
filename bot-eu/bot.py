@@ -97,16 +97,21 @@ async def run_bot(transport: BaseTransport, request: AgentRequest, handle_sigint
 
             # Select Twilio credentials based on the dialed phone number
             # +1 numbers (US/Canada) use US credentials, others use EU credentials
-            account_sid = os.getenv("TWILIO_ACCOUNT_SID")
+            # TODO: send to_phone from server in AgentRequest
 
             if request.to_phone.startswith("+1"):
+                account_sid = os.getenv("TWILIO_ACCOUNT_SID_US")
                 auth_token = os.getenv("TWILIO_AUTH_TOKEN_US")
                 twilio_region = "us1"
                 logger.info(f"Using US Twilio credentials for {request.to_phone}")
             else:
+                account_sid = os.getenv("TWILIO_ACCOUNT_SID_EU")
                 auth_token = os.getenv("TWILIO_AUTH_TOKEN_EU")
                 twilio_region = "ie1"
                 logger.info(f"Using EU Twilio credentials for {request.to_phone}")
+            # auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+            # twilio_region = "us1"
+            logger.info(f"Using {twilio_region} Twilio credentials for {request}")
 
             twilio_client = Client(
                 account_sid,
@@ -116,22 +121,73 @@ async def run_bot(transport: BaseTransport, request: AgentRequest, handle_sigint
 
             # Update the Twilio call with TwiML to forward to the Daily SIP endpoint
             twilio_client.calls(request.call_sid).update(
-                twiml=f"<Response><Dial><Sip>{request.sip_uri}</Sip></Dial></Response>"
+                twiml=f'<Response><Dial><Sip>{request.sip_uri}?x-daily-fromName=Peter</Sip></Dial></Response>'
             )
-            logger.info("Call forwarded successfully")
+            logger.info("Twilio forwarded successfully")
         except Exception as e:
             logger.error(f"Failed to forward call: {str(e)}")
             await task.cancel()
+
+    @transport.event_handler("on_dialin_connected")
+    async def on_dialin_connected(transport, data):
+        logger.info(f"Dial-in connected: {data}")
 
     @transport.event_handler("on_dialin_error")
     async def on_dialin_error(transport, data):
         logger.error(f"Dial-in error: {data}")
         await task.cancel()
 
+    @transport.event_handler("on_dialin_stopped")
+    async def on_dialin_stopped(transport, data):
+        logger.info(f"Dial-in stopped: {data}")
+
+    @transport.event_handler("on_dialin_warning")
+    async def on_dialin_warning(transport, data):
+        logger.warning(f"Dial-in warning: {data}")
+
+    # Dial-out: initiate call after bot joins the room
+    @transport.event_handler("on_joined")
+    async def on_joined(transport, data):
+        if request.dialout_settings:
+            logger.info(f"Bot joined, starting dialout to {request.dialout_settings.sip_uri}")
+            dialout_params = {"sipUri": request.dialout_settings.sip_uri}
+            if request.dialout_settings.provider:
+                dialout_params["provider"] = request.dialout_settings.provider
+            session_id, error = await transport.start_dialout(dialout_params)
+            if error:
+                logger.error(f"Dialout failed: {error}")
+                await task.cancel()
+            else:
+                logger.info(f"Dialout started, session_id: {session_id}")
+
+    @transport.event_handler("on_dialout_answered")
+    async def on_dialout_answered(transport, data):
+        logger.info(f"Dialout answered: {data}")
+        await task.queue_frame(LLMRunFrame())
+
+    @transport.event_handler("on_dialout_connected")
+    async def on_dialout_connected(transport, data):
+        logger.info(f"Dialout connected: {data}")
+
+    @transport.event_handler("on_dialout_stopped")
+    async def on_dialout_stopped(transport, data):
+        logger.info(f"Dialout stopped: {data}")
+
+    @transport.event_handler("on_dialout_error")
+    async def on_dialout_error(transport, data):
+        logger.error(f"Dialout error: {data}")
+        await task.cancel()
+
+    @transport.event_handler("on_dialout_warning")
+    async def on_dialout_warning(transport, data):
+        logger.warning(f"Dialout warning: {data}")
+
     @transport.event_handler("on_client_connected")
     async def on_client_connected(transport, client):
         logger.info("Client connected")
-        await task.queue_frame(LLMRunFrame())
+        # Only auto-start LLM for dial-in (dialout waits for on_dialout_answered)
+        if not request.dialout_settings:
+            await task.queue_frame(LLMRunFrame())
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):

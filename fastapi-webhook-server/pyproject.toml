@@ -1,0 +1,27 @@
+[project]
+name = "fastapi-webhook-server"
+version = "0.1.0"
+description = "FastAPI webhook server for Daily pinless dial-in"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "loguru>=0.7.0",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit~=4.2.0",
+    "ruff~=0.12.1",
+]
+
+[tool.ruff]
+exclude = [".git"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["I"]
+ignore = []

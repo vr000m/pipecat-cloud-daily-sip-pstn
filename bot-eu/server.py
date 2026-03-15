@@ -31,7 +31,9 @@ from twilio.twiml.voice_response import VoiceResponse
 
 from server_utils import (
     AgentRequest,
+    DialoutSettings,
     create_daily_room,
+    create_daily_room_for_dialout,
     start_bot_local,
     start_bot_production,
     twilio_call_data_from_request,
@@ -78,7 +80,7 @@ async def handle_call(request: Request):
 
     call_data = await twilio_call_data_from_request(request)
 
-    sip_config = await create_daily_room(call_data, request.app.state.http_session)
+    sip_config = await create_daily_room(call_data, request.app.state.http_session, sip_provider="daily")
 
     # Make sure we have a SIP endpoint.
     if not sip_config.sip_endpoint:
@@ -89,6 +91,7 @@ async def handle_call(request: Request):
         token=sip_config.token,
         call_sid=call_data.call_sid,
         sip_uri=sip_config.sip_endpoint,
+        to_phone=call_data.to_phone,
     )
     print (f"Agent request: {agent_request}")
 
@@ -116,6 +119,50 @@ async def handle_call(request: Request):
     except Exception as e:
         logger.error(f"Unexpected error: {e!s}")
         raise HTTPException(status_code=500, detail=f"Server error: {e!s}")
+
+
+@app.post("/dialout")
+async def handle_dialout(request: Request):
+    """Handle outbound dial-out requests.
+
+    This endpoint:
+    1. Accepts dialout_settings (sip_uri, provider)
+    2. Creates a Daily room with dialout enabled
+    3. Starts the bot with dialout_settings so it calls start_dialout after joining
+
+    Returns:
+        JSON with room_url for monitoring
+    """
+    logger.debug("Received dialout request")
+
+    body = await request.json()
+    dialout_settings = body.get("dialout_settings")
+    if not dialout_settings:
+        raise HTTPException(status_code=400, detail="Missing dialout_settings")
+
+    dialout = DialoutSettings(**dialout_settings)
+
+    # Create a Daily room with dialout enabled (no SIP params needed)
+    room_config = await create_daily_room_for_dialout(request.app.state.http_session)
+
+    agent_request = AgentRequest(
+        room_url=room_config.room_url,
+        token=room_config.token,
+        dialout_settings=dialout,
+    )
+    logger.info(f"Dialout request: {agent_request}")
+
+    # Start bot locally or in production
+    try:
+        if os.getenv("ENV") == "production":
+            await start_bot_production(agent_request, request.app.state.http_session)
+        else:
+            await start_bot_local(agent_request, request.app.state.http_session)
+    except Exception as e:
+        logger.error(f"Error starting bot for dialout: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start bot: {e!s}")
+
+    return {"room_url": room_config.room_url}
 
 
 @app.get("/health")

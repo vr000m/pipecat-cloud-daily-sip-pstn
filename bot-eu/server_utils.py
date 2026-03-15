@@ -5,11 +5,13 @@
 #
 
 import os
+import time
 
 import aiohttp
 from fastapi import HTTPException, Request
 from loguru import logger
 from pipecat.runner.daily import DailyRoomConfig, configure
+from pipecat.transports.daily.utils import DailyRoomProperties, DailyRoomSipParams
 from pydantic import BaseModel
 
 
@@ -27,20 +29,31 @@ class TwilioCallData(BaseModel):
     to_phone: str
 
 
+class DialoutSettings(BaseModel):
+    """Dial-out configuration."""
+
+    sip_uri: str
+    provider: str | None = None
+
+
 class AgentRequest(BaseModel):
     """Request data sent to bot start endpoint.
 
     Attributes:
         room_url: Daily room URL for the bot to join
         token: Authentication token for the Daily room
-        call_sid: Unique identifier for the call
-        sip_uri: SIP URI for the call
+        call_sid: Unique identifier for the call (dial-in only)
+        sip_uri: SIP URI for the call (dial-in only)
+        to_phone: Dialed phone number (dial-in only)
+        dialout_settings: Dial-out configuration (dial-out only)
     """
 
     room_url: str
     token: str
-    call_sid: str
-    sip_uri: str
+    call_sid: str | None = None
+    sip_uri: str | None = None
+    to_phone: str | None = None
+    dialout_settings: DialoutSettings | None = None
 
 
 async def twilio_call_data_from_request(request: Request):
@@ -67,12 +80,52 @@ async def twilio_call_data_from_request(request: Request):
 
 
 async def create_daily_room(
-    call_data: TwilioCallData, session: aiohttp.ClientSession
+    call_data: TwilioCallData,
+    session: aiohttp.ClientSession,
+    sip_provider: str | None = None,
 ) -> DailyRoomConfig:
     """Create a Daily room configured for PSTN dial-in.
 
     Args:
         call_data: Call data containing caller phone number and call details
+        session: Shared aiohttp session for making HTTP requests
+        provider: SIP provider ('daily' or 'twilio')
+
+    Returns:
+        DailyRoomConfig: Configuration object with room_url, token, and sip_endpoint
+
+    Raises:
+        HTTPException: If room creation fails
+    """
+    try:
+        sip_params = DailyRoomSipParams(
+            display_name=call_data.from_phone,
+            video=False,
+            sip_mode="dial-in",
+            num_endpoints=1,
+            codecs=None,
+            provider=sip_provider,
+        )
+        room_props = DailyRoomProperties(
+            exp=time.time() + 7200,
+            eject_at_room_exp=True,
+            sip=sip_params,
+            enable_dialout=True,
+            start_video_off=True,
+            geo="uwm",
+        )
+        return await configure(session, room_properties=room_props)
+    except Exception as e:
+        logger.error(f"Error creating Daily room: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create Daily room: {e!s}")
+
+
+async def create_daily_room_for_dialout(
+    session: aiohttp.ClientSession,
+) -> DailyRoomConfig:
+    """Create a Daily room configured for dial-out.
+
+    Args:
         session: Shared aiohttp session for making HTTP requests
 
     Returns:
@@ -82,9 +135,16 @@ async def create_daily_room(
         HTTPException: If room creation fails
     """
     try:
-        return await configure(session, sip_caller_phone=call_data.from_phone)
+        room_props = DailyRoomProperties(
+            exp=time.time() + 7200,
+            eject_at_room_exp=True,
+            enable_dialout=True,
+            start_video_off=True,
+            geo="uwm",
+        )
+        return await configure(session, room_properties=room_props)
     except Exception as e:
-        logger.error(f"Error creating Daily room: {e}")
+        logger.error(f"Error creating Daily room for dialout: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create Daily room: {e!s}")
 
 
